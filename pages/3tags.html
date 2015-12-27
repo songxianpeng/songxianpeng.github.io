@@ -17,6 +17,11 @@ isNavItem: true
     </ul>
 </div>
 
+<div class="tagCloud">
+    {% for tag in site.tags %}
+    <a href="#{{ tag | first }}">{{ tag | first }}</a>
+    {% endfor %}
+</div>
 
 <div>
     {% for tag in site.tags %}
@@ -29,8 +34,4 @@ isNavItem: true
     {% endfor %}
 </div>
 
-<div class="tagCloud">
-    {% for tag in site.tags %}
-    <a href="#{{ tag | first }}">{{ tag | first }}</a>
-    {% endfor %}
-</div>
+
