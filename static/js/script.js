@@ -1,11 +1,11 @@
 ---
-    layout: null
+layout: null
 ---
 
 /**
  * 页面ready方法
  */
-$(document).ready(function() {
+ $(document).ready(function() {
 
     console.log("欢迎交流！");
 
@@ -16,7 +16,7 @@ $(document).ready(function() {
 /**
  * 回到顶部
  */
-function backToTop() {
+ function backToTop() {
     $("[data-toggle='tooltip']").tooltip();
     var st = $(".page-scrollTop");
     var $window = $(window);
@@ -38,8 +38,18 @@ function backToTop() {
             scrollTop: "0"
         }, 500);
     });
+}
 
+/*
+*搜索引擎
+*/
+function search(){
+   (function(w,d,t,u,n,s,e){w['SwiftypeObject']=n;w[n]=w[n]||function(){
+      (w[n].q=w[n].q||[]).push(arguments);};s=d.createElement(t);
+      e=d.getElementsByTagName(t)[0];s.async=1;s.src=u;e.parentNode.insertBefore(s,e);
+  })(window,document,'script','//s.swiftypecdn.com/install/v2/st.js','_st');
 
+  _st('install','{{site.swiftype_searchId}}','2.0.0');
 }
 
 
