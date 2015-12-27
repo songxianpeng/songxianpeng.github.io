@@ -8,6 +8,7 @@
 $(document).ready(function() {
     generateContent();
     share();
+    disqus();
 });
 
 /**
