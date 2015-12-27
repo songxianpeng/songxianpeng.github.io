@@ -1,21 +1,20 @@
-##[点我查看中文说明](https://github.com/dubuyuye/blog/blob/gh-pages/README_zh_CN.md)
-
-# Blog Address
+# 博客地址
 
 <http://blog.rainyalley.com/>
 
-
-# Must Modify
+# 必改内容
 
 ## 1.swiftype
 
-This service provides the on-site search function.
+此服务提供站内搜索功能
 
-Service address： <https://swiftype.com/>.
+服务地址：<https://swiftype.com/>
 
-After the setup is complete， you need to modify the `swiftype_searchId` in `_config.yml`.
+设置方法可参考 <http://opiece.me/2015/04/16/site-search-by-swiftype/>
 
-In your swiftype engine, go to `Setup and integration` -> `Install Search`, you could find the `swiftype_searchId`.
+设置完毕后，您需要修改 `_config.yml` 中 `swiftype_searchId`。
+
+在自己的引擎中，进入 `Setup and integration` -> `Install Search`, 你将找到 `swiftype_searchId`。
 
 ```html
 <script type="text/javascript">
@@ -27,8 +26,10 @@ In your swiftype engine, go to `Setup and integration` -> `Install Search`, you 
 
 ## 2.disqus
 
-This service provides the comment function.
+此服务提供评论功能
 
-Service address： <https://disqus.com/>.
+服务地址：<https://disqus.com/>
 
-After the setup is complete， you need to modify the `disqus_shortname` in `_config.yml`.
+设置方法可参考 <http://blog.ihurray.com/blog/Disqus-learning.php>
+
+设置完毕后, 你需要修改 `_config.yml` 中的 `disqus_shortname` ,否则对您博客的评论将归到本人名下。
