@@ -1,11 +1,11 @@
 ---
-layout: null
+    layout: null
 ---
 
 /**
  * 页面ready方法
  */
- $(document).ready(function() {
+$(document).ready(function() {
 
     console.log("欢迎交流！");
 
@@ -16,7 +16,7 @@ layout: null
 /**
  * 回到顶部
  */
- function backToTop() {
+function backToTop() {
     $("[data-toggle='tooltip']").tooltip();
     var st = $(".page-scrollTop");
     var $window = $(window);
@@ -38,8 +38,8 @@ layout: null
             scrollTop: "0"
         }, 500);
     });
-}
 
+<<<<<<< HEAD
 <<<<<<< HEAD
 /*
 *搜索引擎
@@ -58,6 +58,9 @@ function search(){
 >>>>>>> parent of ce0895f... 搜索引擎优化
 
     _st('install','{{site.swiftype_searchId}}','2.0.0');
+=======
+
+>>>>>>> parent of e06bba7... 搜索还原
 }
 
 
