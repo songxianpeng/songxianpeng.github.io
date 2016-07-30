@@ -12,20 +12,20 @@ baseurl:
 paginate: 20
 
 # Markdown Processors
-markdown: redcarpet
-redcarpet:
-  extensions:
-    - hard_wrap
-    - no_intra_emphasis
-    - autolink
-    - strikethrough
-    - tables
-    - lax_spacing
-    - with_toc_data
+# markdown: redcarpet
+# redcarpet:
+#   extensions:
+#     - hard_wrap
+#     - no_intra_emphasis
+#     - autolink
+#     - strikethrough
+#     - tables
+#     - lax_spacing
+#     - with_toc_data
     
 
-title : Jekyll Jacman
-tagline: A fresh looking and responsive theme for Jekyll
+title : Xpress Song
+tagline: 相由心生
 
 defaults:
   -
