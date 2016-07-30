@@ -1,7 +1,7 @@
 @import url(http://fonts.googleapis.com/css?family=Inconsolata);
 @import url(http://fonts.googleapis.com/css?family=PT+Sans);
 @import url(http://fonts.googleapis.com/css?family=PT+Sans+Narrow:400,700);
-article,
+.highlight article,
 aside,
 details,
 figcaption,
@@ -14,7 +14,7 @@ section,
 summary {
   display: block;
 }
-audio,
+.highlight audio,
 canvas,
 video {
   display: inline-block;
@@ -26,87 +26,87 @@ audio:not([controls]) {
 [hidden] {
   display: none;
 }
-html {
+.highlight html {
   font-family: sans-serif;
   -webkit-text-size-adjust: 100%;
   -ms-text-size-adjust: 100%;
 }
-body {
+.highlight body {
   margin: 0;
 }
-a:focus {
+.highlight a:focus {
   outline: thin dotted;
 }
-a:active,
+.highlight a:active,
 a:hover {
   outline: 0;
 }
-h1 {
+.highlight h1 {
   font-size: 2em;
 }
-abbr[title] {
+.highlight abbr[title] {
   border-bottom: 1px dotted;
 }
-b,
-strong {
+.highlight b,
+.highlight strong {
   font-weight: bold;
 }
-dfn {
+.highlight dfn {
   font-style: italic;
 }
-mark {
+.highlight mark {
   background: #ff0;
   color: #000;
 }
-code,
+.highlight code,
 kbd,
 pre,
 samp {
   font-family: monospace, serif;
   font-size: 1em;
 }
-pre {
+.highlight pre {
   white-space: pre-wrap;
   word-wrap: break-word;
 }
-q {
+.highlight q {
   quotes: "\201C" "\201D" "\2018" "\2019";
 }
-small {
+.highlight small {
   font-size: 80%;
 }
-sub,
+.highlight sub,
 sup {
   font-size: 75%;
   line-height: 0;
   position: relative;
   vertical-align: baseline;
 }
-sup {
+.highlight sup {
   top: -0.5em;
 }
-sub {
+.highlight sub {
   bottom: -0.25em;
 }
-img {
+.highlight img {
   border: 0;
 }
-svg:not(:root) {
+.highlight svg:not(:root) {
   overflow: hidden;
 }
-figure {
+.highlight figure {
   margin: 0;
 }
-fieldset {
+.highlight fieldset {
   border: 1px solid #c0c0c0;
   margin: 0 2px;
   padding: 0.35em 0.625em 0.75em;
 }
-legend {
+.highlight legend {
   border: 0;
   padding: 0;
 }
-button,
+.highlight button,
 input,
 select,
 textarea {
@@ -114,57 +114,57 @@ textarea {
   font-size: 100%;
   margin: 0;
 }
-button,
+.highlight button,
 input {
   line-height: normal;
 }
-button,
+.highlight button,
 html input[type="button"],
 input[type="reset"],
 input[type="submit"] {
   -webkit-appearance: button;
   cursor: pointer;
 }
-button[disabled],
+.highlight button[disabled],
 input[disabled] {
   cursor: default;
 }
-input[type="checkbox"],
+.highlight input[type="checkbox"],
 input[type="radio"] {
   box-sizing: border-box;
   padding: 0;
 }
-input[type="search"] {
+.highlight input[type="search"] {
   -webkit-appearance: textfield;
   -moz-box-sizing: content-box;
   -webkit-box-sizing: content-box;
   box-sizing: content-box;
 }
-input[type="search"]::-webkit-search-cancel-button,
+.highlight input[type="search"]::-webkit-search-cancel-button,
 input[type="search"]::-webkit-search-decoration {
   -webkit-appearance: none;
 }
-button::-moz-focus-inner,
+.highlight button::-moz-focus-inner,
 input::-moz-focus-inner {
   border: 0;
   padding: 0;
 }
-textarea {
+.highlight textarea {
   overflow: auto;
   vertical-align: top;
 }
-table {
+.highlight table {
   border-collapse: collapse;
   border-spacing: 0;
 }
-html {
+.highlight html {
   font-family: 'PT Sans', sans-serif;
 }
-pre,
+.highlight pre,
 code {
   font-family: 'Inconsolata', sans-serif;
 }
-h1,
+.highlight h1,
 h2,
 h3,
 h4,
@@ -173,129 +173,129 @@ h6 {
   font-family: 'PT Sans Narrow', sans-serif;
   font-weight: 700;
 }
-html {
+.highlight html {
   background-color: #eee8d5;
   color: #657b83;
   margin: 1em;
 }
-body {
+.highlight body {
   background-color: #fdf6e3;
   margin: 0 auto;
   max-width: 23cm;
   border: 1pt solid #93a1a1;
   padding: 1em;
 }
-code {
+.highlight code {
   background-color: #eee8d5;
   padding: 2px;
 }
-a {
+.highlight a {
   color: #b58900;
 }
-a:visited {
+.highlight a:visited {
   color: #cb4b16;
 }
-a:hover {
+.highlight a:hover {
   color: #cb4b16;
 }
-h1 {
+.highlight h1 {
   color: #d33682;
 }
-h2,
+.highlight h2,
 h3,
 h4,
 h5,
 h6 {
   color: #859900;
 }
-pre {
+.highlight pre {
   background-color: #fdf6e3;
   color: #657b83;
   border: 1pt solid #93a1a1;
   padding: 1em;
   box-shadow: 5pt 5pt 8pt #eee8d5;
 }
-pre code {
+.highlight pre code {
   background-color: #fdf6e3;
 }
-h1 {
+.highlight h1 {
   font-size: 2.8em;
 }
-h2 {
+.highlight h2 {
   font-size: 2.4em;
 }
-h3 {
+.highlight h3 {
   font-size: 1.8em;
 }
-h4 {
+.highlight h4 {
   font-size: 1.4em;
 }
-h5 {
+.highlight h5 {
   font-size: 1.3em;
 }
-h6 {
+.highlight h6 {
   font-size: 1.15em;
 }
-.tag {
+.highlight .tag {
   background-color: #eee8d5;
   color: #d33682;
   padding: 0 0.2em;
 }
-.todo,
+.highlight .todo,
 .next,
 .done {
   color: #fdf6e3;
   background-color: #dc322f;
   padding: 0 0.2em;
 }
-.tag {
+.highlight .tag {
   -webkit-border-radius: 0.35em;
   -moz-border-radius: 0.35em;
   border-radius: 0.35em;
 }
-.TODO {
+.highlight .TODO {
   -webkit-border-radius: 0.2em;
   -moz-border-radius: 0.2em;
   border-radius: 0.2em;
   background-color: #2aa198;
 }
-.NEXT {
+.highlight .NEXT {
   -webkit-border-radius: 0.2em;
   -moz-border-radius: 0.2em;
   border-radius: 0.2em;
   background-color: #268bd2;
 }
-.ACTIVE {
+.highlight .ACTIVE {
   -webkit-border-radius: 0.2em;
   -moz-border-radius: 0.2em;
   border-radius: 0.2em;
   background-color: #268bd2;
 }
-.DONE {
+.highlight .DONE {
   -webkit-border-radius: 0.2em;
   -moz-border-radius: 0.2em;
   border-radius: 0.2em;
   background-color: #859900;
 }
-.WAITING {
+.highlight .WAITING {
   -webkit-border-radius: 0.2em;
   -moz-border-radius: 0.2em;
   border-radius: 0.2em;
   background-color: #cb4b16;
 }
-.HOLD {
+.highlight .HOLD {
   -webkit-border-radius: 0.2em;
   -moz-border-radius: 0.2em;
   border-radius: 0.2em;
   background-color: #d33682;
 }
-.NOTE {
+.highlight .NOTE {
   -webkit-border-radius: 0.2em;
   -moz-border-radius: 0.2em;
   border-radius: 0.2em;
   background-color: #d33682;
 }
-.CANCELLED {
+.highlight .CANCELLED {
   -webkit-border-radius: 0.2em;
   -moz-border-radius: 0.2em;
   border-radius: 0.2em;
