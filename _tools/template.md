@@ -1,6 +1,6 @@
 ---
 layout: tools
-title: Wiki Template
+title: Tools Template
 categories: [cate1, cate2]
 description: some word here
 keywords: keyword1, keyword2
