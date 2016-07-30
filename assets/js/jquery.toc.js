@@ -9,7 +9,7 @@
       headers: 'h1, h2, h3, h4, h5, h6',
       listType: 'ul', // values: [ol|ul]
       showEffect: 'slideDown', // values: [show|slideDown|fadeIn|none]
-      showSpeed: 0 // set to 0 to deactivate effect
+      showSpeed: 1 // set to 0 to deactivate effect
     },
     settings = $.extend(defaults, options);
 
