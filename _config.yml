@@ -73,7 +73,7 @@ banner_img: #img/banner.jpg ## size:1920px*200px+. Banner Picture
 #### index post is expanding or not 
 index:
   expand: true           ## default is unexpanding,so you can only see the short description of each post.
-  excerpt_link: Read More  
+  excerpt_link: 阅读更多  
 
 close_aside: false  #close sidebar in post page if true
 mathjax: false      #enable mathjax if true
@@ -143,7 +143,7 @@ totop: true           ## if you want to scroll to top in every post set the valu
 #### Custom Search
 google_cse: 
   enable: false
-  cx: 018294693190868310296:abnhpuysycw  ## e.g. 018294693190868310296:abnhpuysycw your Custom Search ID.
+  cx: ## e.g. 018294693190868310296:abnhpuysycw your Custom Search ID.
 ## https://www.google.com/cse/ 
 ## To enable the custom search You must create a "search" folder in '/source' and a "index.md" file
 ## set the 'front-matter' as
@@ -151,9 +151,9 @@ google_cse:
 ## title: search
 ## ---
 baidu_search:     ## http://zn.baidu.com/
-  enable: false
-  id:   ## e.g. "783281470518440642"  for your baidu search id
-  site: http://zhannei.baidu.com/cse/search  ## your can change to your site instead of the default site
+  enable: true
+  id: 1663074136147735573   ## e.g. "783281470518440642"  for your baidu search id
+  site: http://xpresssong.github.io/  ## your can change to your site instead of the default site
   
 tinysou_search:     ## http://tinysou.com/
   enable: false
