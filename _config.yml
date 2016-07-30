@@ -38,7 +38,7 @@ defaults:
 ##### Menu
 menu:
   主页: /
-  笔记: /archives
+  归档: /archives
   分类: /categories
   关于: /about
 ## you can create `tags` and `categories` folders in `../source`.
