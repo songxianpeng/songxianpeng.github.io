@@ -40,6 +40,7 @@ menu:
   主页: /
   归档: /archives
   分类: /categories
+  标签: /tags
   关于: /about
 ## you can create `tags` and `categories` folders in `../source`.
 ## And create a `index.md` file in each of them.
