@@ -37,10 +37,10 @@ defaults:
 
 ##### Menu
 menu:
-  Home: /
-  Archives: /archives
-  Categories: /Categories
-  About: /about
+  主页: /
+  笔记: /archives
+  分类: /categories
+  关于: /about
 ## you can create `tags` and `categories` folders in `../source`.
 ## And create a `index.md` file in each of them.
 ## set `front-matter`as
@@ -82,7 +82,7 @@ mathjax: false      #enable mathjax if true
 author:
   name: xpress song      ## e.g. wuchong Author name
   intro_line1:  "welcome to my blog."    ## your introduction on the bottom of the page
-  intro_line2:  "open,discuss."  ## the 2nd line
+  intro_line2:  "discuss."  ## the 2nd line
   weibo:      ## e.g. wuchong1014 or 2176287895 for http://weibo.com/2176287895
   weibo_verifier:  ## e.g. b3593ceb Your weibo-show widget verifier ,if you use weibo-show it is needed.
   tsina:      ## e.g. 2176287895  Your weibo ID,It will be used in share button.
