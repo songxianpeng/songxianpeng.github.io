@@ -121,5 +121,7 @@
 }
 
 .toc{
-    overflow-y:scroll;height:680px;padding-right:2x;
+    overflow-y:auto;
+    height:680px;
+    padding-right:2x;
 }
