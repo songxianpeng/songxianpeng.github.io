@@ -1,5 +1,5 @@
 ---
-layout: wiki
+layout: tools
 title: 善用佳软
 categories: Recommends
 description: 用正确的工具做对的事情

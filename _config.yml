@@ -36,8 +36,8 @@ navs:
     label: 分类
 
   -
-    href: /wiki/
-    label: 维基
+    href: /tools/
+    label: 工具
 
   -
     href: /links/
@@ -73,9 +73,9 @@ gems:
     - jemoji
 #     - jekyll-mentions
 collections:
-    wiki:
+    tools:
         output: true
-        permalink: /wiki/:path/
+        permalink: /tools/:path/
 
 # ---------------- #
 #      Socials     #

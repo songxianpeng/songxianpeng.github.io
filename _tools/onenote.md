@@ -1,5 +1,5 @@
 ---
-layout: wiki
+layout: tools
 title: OneNote
 categories: Tools
 description: 我最常用的跨平台笔记软件。

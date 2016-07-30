@@ -1,5 +1,5 @@
 ---
-layout: wiki
+layout: tools
 title: Git
 categories: Git
 description: Git 常用操作记录。
@@ -42,9 +42,9 @@ keywords: Git, 版本控制
 [gui]
    encoding = utf-8
 [i18n]
-   commitencoding = utf-8 
+   commitencoding = utf-8
 [svn]
-   pathnameencoding = utf-8 
+   pathnameencoding = utf-8
 ```
 
 参考 <http://zengrong.net/post/1249.htm>

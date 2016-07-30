@@ -1,5 +1,5 @@
 ---
-layout: wiki
+layout: tools
 title: Markdown
 categories: Markdown
 description: Markdown 常用语法示例。
@@ -19,7 +19,7 @@ keywords: Markdown
 <http://mazhuang.org>
 ```
 
-[靠谱-ing](http://mazhuang.org)  
+[靠谱-ing](http://mazhuang.org)
 
 <http://mazhuang.org>
 
