@@ -85,7 +85,7 @@
     /**
       * 文章目录相关
       */
-    .post .toc {
+    .post ul#markdown-toc {
         display: none!important;
     }
 }
@@ -137,23 +137,12 @@
     padding-right: 15px;
 }
 .content-navigation .content-navigation-list{
-    padding: 10px 20px 10px 0px;
-    font-size: 14px;
-}
-
-.content-navigation-list code {
-    font-size: 14px;
-    color: gray;
-    background: #eee;
+    padding: 10px 0;
 }
 
 .content-navigation .content-navigation-list ul li{
     line-height: 25px;
     word-break: break-all;
-}
-
-.toc i{
-    display: none;
 }
 
 .boundary{

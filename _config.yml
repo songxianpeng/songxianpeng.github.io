@@ -5,41 +5,9 @@ markdown: kramdown
 
 
 kramdown:
-  input:         GFM
-  auto_ids:      true
-  auto_id_prefix: 'id-'
-  footnote_nr:   1
-  entity_output: as_char
-  toc_levels:    1..6
-  smart_quotes:  lsquo,rsquo,ldquo,rdquo
-  use_coderay:   true
+  input:  GFM
+  syntax_highlighter: rouge
 
-  coderay:
-    coderay_wrap:              div
-    coderay_line_numbers:      inline
-    coderay_line_number_start: 1
-    coderay_tab_width:         2
-    coderay_bold_every:        10
-    coderay_css:               style
-
-# markdown: redcarpet
-# redcarpet:
-#   extensions: [
-#    "no_intra_emphasis"
-#    ,"fenced_code_blocks"
-#    ,"autolink"
-#    ,"tables"
-#    ,"strikethrough"
-#    ,"superscript"
-#    ,"with_toc_data"
-#    ,"footnotes"
-#    ,"highlight"
-#    ,"underline"
-#    ,"quote"
-#    ,"lax_spacing"
-#    ,"prettify"
-# #   ,"html_toc"
-#   ]
 
 
 paginate: 10
@@ -47,6 +15,16 @@ paginate_path: ":num"
 baseurl: ""
 
 
+
+defaults:
+  -
+    scope:
+      path: ""
+      type: "posts"
+    values:
+      layout: post
+      styles : [highlight.css,post.css]
+      scripts : [post.js]
 
 title: "XpressSong"
 email: "707339962@qq.com"
