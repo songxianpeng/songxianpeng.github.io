@@ -122,6 +122,6 @@
 
 .toc{
     overflow-y:auto;
-    height:660px;
+    max-height:660px;
     padding-right:2x;
 }
