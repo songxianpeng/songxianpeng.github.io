@@ -3,9 +3,10 @@ layout: page
 title: 归档
 permalink: /archive/
 icon: octicon-repo
-styles: archive.css
 isNavItem: true
+styles: archive.css
 ---
+
 <section id="cd-timeline" class="cd-container">
 {% for post in site.posts  %}
     <div class="cd-timeline-block" id="{{ post.date | date: '%Y-%m-%d' }}">
