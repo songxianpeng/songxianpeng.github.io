@@ -1,5 +1,7 @@
-_site
-.sass-cache
-.idea
-.local
-.local/*
+_site/
+*.swp
+*.~vsd
+\#*\#
+*~
+.DS_Store
+Gemfile.lock
