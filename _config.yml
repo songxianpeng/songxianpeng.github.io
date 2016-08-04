@@ -72,10 +72,10 @@ gems:
     - jekyll-feed
     - jemoji
 #     - jekyll-mentions
-# collections:
-#     tools:
-#         output: true
-#         permalink: /tools/:path/
+collections:
+    tools:
+        output: true
+        permalink: /tools/:path/
 
 # ---------------- #
 #      Socials     #
