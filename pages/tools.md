@@ -1,10 +1,10 @@
 ---
 layout: page
-title: 工具
+title: tools
 description: 人越学越觉得自己无知
 keywords: 软件, Tools
 comments: false
-menu: 软件
+menu: 工具
 permalink: /tools/
 ---
 
