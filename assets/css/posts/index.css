@@ -127,6 +127,7 @@
 }
 
 article img{
-    text-align: center;
-
+    clear: both;
+    display: block;
+    margin: auto;
 }
