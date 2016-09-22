@@ -14,14 +14,14 @@ keywords: Markdown
 ### 超链接
 
 ```
-[靠谱-ing](http://mazhuang.org)
+[靠谱-ing](http://xpresssong.github.io/)
 
-<http://mazhuang.org>
+<http://xpresssong.github.io/>
 ```
 
-[靠谱-ing](http://mazhuang.org)
+[靠谱-ing](http://xpresssong.github.io/)
 
-<http://mazhuang.org>
+<http://xpresssong.github.io/>
 
 ### 列表
 
