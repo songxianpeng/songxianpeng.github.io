@@ -10,4 +10,4 @@ permalink: /links/
 
 > together.
 
-* [Wisdom's blog](http://blog.xuerlove.com/)
+* [Wisdom's blog](http://www.xuerlove.com/)
