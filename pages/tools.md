@@ -1,6 +1,6 @@
 ---
 layout: page
-title: tools
+title: Tools
 description: 人越学越觉得自己无知
 keywords: 软件, Tools
 comments: false
