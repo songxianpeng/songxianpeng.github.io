@@ -311,7 +311,7 @@ pre {
     margin-top: 0;
     margin-bottom: 0;
     
-    font: 12px "DejaVu Sans Mono",Consolas, "Liberation Mono", Menlo, Courier,"Microsoft Yahei UI",微软雅黑 !important;
+    font: 12px "DejaVu Sans Mono",Consolas, "Liberation Mono", Menlo, Courier,"Microsoft Yahei UI",微软雅黑;
 }
 
 .container {
