@@ -11,3 +11,4 @@ permalink: /links/
 > together.
 
 * [Wisdom's blog](http://www.xuerlove.com/)
+* [jinguangyue的博客](http://blog.csdn.net/coderyue)
