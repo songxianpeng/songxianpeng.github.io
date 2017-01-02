@@ -1,7 +1,7 @@
 ---  
 layout: post  
-title: Scanner类和String类  
-tags: Java基础 String  
+title: Scanner类、String类和StringBuffer类  
+tags: Java基础 String StringBuffer StringBuilder  
 categories: Java  
 published: true  
 ---  
@@ -124,3 +124,17 @@ String s1 = "hello";
 String s2 = "hel";
 System.out.println(s1.compareTo(s2)); // 2
 ```
+# StringBuffer类
+
+线程安全的可变字符序列
+
+## String,StringBuffer,StringBuilder的区别
+
+* String是内容不可变的，而StringBuffer,StringBuilder都是内容可变的。
+* StringBuffer是同步的，数据安全,效率低;StringBuilder是不同步的,数据不安全,效率高
+
+## StringBuffer和数组的区别
+
+* 二者都可以看出是一个容器，装其他的数据。
+* StringBuffer的数据最终是一个字符串数据。
+* 数组可以放置多种数据，但必须是同一种数据类型的。
