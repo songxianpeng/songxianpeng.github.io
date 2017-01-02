@@ -124,6 +124,7 @@ String s1 = "hello";
 String s2 = "hel";
 System.out.println(s1.compareTo(s2)); // 2
 ```
+
 # StringBuffer类
 
 线程安全的可变字符序列
