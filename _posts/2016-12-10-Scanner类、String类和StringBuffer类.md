@@ -139,3 +139,47 @@ System.out.println(s1.compareTo(s2)); // 2
 * 二者都可以看出是一个容器，装其他的数据。
 * StringBuffer的数据最终是一个字符串数据。
 * 数组可以放置多种数据，但必须是同一种数据类型的。
+
+
+## String作为形式参数，StringBuffer作为形式参数
+
+String作为参数传递，效果和基本类型作为参数传递是一样的。
+
+> String和StringBuffer、StringBuilder内部是用char[]来存储字符串的，相当于char[]的包装类，在Java中，包装类的特质就是值操作时体现对应的基本类型的特质，这就是为什么会有传值的效果！
+
+```java
+public static void main(String[] args) {
+    String s1 = "hello";
+    String s2 = "world";
+    System.out.println(s1 + "---" + s2);// hello---world
+    change(s1, s2);
+    System.out.println(s1 + "---" + s2);// hello---world
+
+    StringBuffer sb1 = new StringBuffer("hello");
+    StringBuffer sb2 = new StringBuffer("world");
+    System.out.println(sb1 + "---" + sb2);// hello---world
+    change(sb1, sb2);
+    System.out.println(sb1 + "---" + sb2);// hello---worldworld
+
+    StringBuilder sb3 = new StringBuilder("hello");
+    StringBuilder sb4 = new StringBuilder("world");
+    System.out.println(sb3 + "---" + sb4);// hello---world
+    change(sb3, sb4);
+    System.out.println(sb3 + "---" + sb4);// hello---worldworld
+}
+
+public static void change(StringBuffer sb1, StringBuffer sb2) {
+    sb1 = sb2;
+    sb2.append(sb1);
+}
+
+public static void change(StringBuilder sb1, StringBuilder sb2) {
+    sb1 = sb2;
+    sb2.append(sb1);
+}
+
+public static void change(String s1, String s2) {
+    s1 = s2;
+    s2 = s1 + s2;
+}
+```
