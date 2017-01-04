@@ -6,7 +6,7 @@ categories: Java
 published: true  
 ---  
 
-# Scanner类
+## Scanner类
 
 ### Scanner取值问题
 
@@ -15,11 +15,11 @@ published: true
 * 重新定义一个Scanner对象
 * 把所有的数据都用字符串获取，然后再进行相应的转换
 
-# String类
+## String类
 
-## String类的特点
+### String类的特点
 
-### 字符串是常量,它的值在创建之后不能更改
+#### 字符串是常量,它的值在创建之后不能更改
 
 * String类被final修饰，不能被继承
 * 这里指的是字符串的内容不能改变，而不是引用不能改变。
@@ -45,7 +45,7 @@ System.out.println("s:" + s); //helloworld
 * 创建常量池对象"hello"	
 
 
-### ==和equls
+#### ==和equls
 
 * 字符串如果是变量相加，先开空间，在拼接。
 * 字符串如果是常量相加，是先加，然后在常量池找，如果有就直接返回，否则，就创建。
@@ -77,7 +77,7 @@ System.out.println(s3.equals("hello" + "world"));// true
 
 ```
 
-## split方法
+### split方法
 
 ```java
 String stringSplit = ",,";
@@ -88,7 +88,7 @@ System.out.println(strings.length);//3
 ```
 
 
-## compareTo方法
+### compareTo方法
 
 ```java
 private final char value[];
@@ -125,23 +125,23 @@ String s2 = "hel";
 System.out.println(s1.compareTo(s2)); // 2
 ```
 
-# StringBuffer类
+## StringBuffer类
 
 线程安全的可变字符序列
 
-## String,StringBuffer,StringBuilder的区别
+### String,StringBuffer,StringBuilder的区别
 
 * String是内容不可变的，而StringBuffer,StringBuilder都是内容可变的。
 * StringBuffer是同步的，数据安全,效率低;StringBuilder是不同步的,数据不安全,效率高
 
-## StringBuffer和数组的区别
+### StringBuffer和数组的区别
 
 * 二者都可以看出是一个容器，装其他的数据。
 * StringBuffer的数据最终是一个字符串数据。
 * 数组可以放置多种数据，但必须是同一种数据类型的。
 
 
-## String作为形式参数，StringBuffer作为形式参数
+### String作为形式参数，StringBuffer作为形式参数
 
 String作为参数传递，效果和基本类型作为参数传递是一样的。
 
@@ -183,3 +183,7 @@ public static void change(String s1, String s2) {
     s2 = s1 + s2;
 }
 ```
+
+----------
+
+*以上概念总结于传智播客Java基础课程*
