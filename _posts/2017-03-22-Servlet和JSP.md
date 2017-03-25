@@ -1,11 +1,12 @@
 ---  
 lajout: post  
-title: Servlet  
-tags: Servlet  
+title: Servlet和JSP  
+tags: Servlet JSP  
 categories: JavaEE  
 published: true  
 ---  
 
+[TOC]
 
 ## Servlet
 
@@ -199,6 +200,248 @@ prop.load(in);
 
 String driver = prop.getProperty("driver");
 ```
+
+## JSP
+
+### JSP运行原理
+
+* 每个JSP 页面在第一次被访问时，WEB容器都会把请求交给JSP引擎（即一个Java程序）去处理。JSP引擎先将JSP翻译成一个_jspServlet(实质上也是一个servlet) ，然后按照servlet的调用方式进行调用。
+* 由于JSP第一次访问时会翻译成servlet，所以第一次访问通常会比较慢，但第二次访问，JSP引擎如果发现JSP没有变化，就不再翻译，而是直接调用，所以程序的执行效率不会受到影响。
+
+### JSP语法
+
+#### JSP模版元素
+
+JSP页面中的HTML内容称之为JSP模版元素
+
+#### JSP表达式
+
+JSP脚本表达式（expression）用于将程序数据输出到客户端
+
+语法：
+```jsp
+:<%= new java.util.Date() %> 
+```
+
+*JSP引擎在翻译脚本表达式时，会将程序数据转成字符串，然后在相应位置用out.print(…) 将数据输给客户端。*  
+*JSP脚本表达式中的变量或表达式后面`不能有分号`*
+
+#### JSP脚本片断
+
+JSP脚本片断（scriptlet）用于在JSP页面中编写多行Java代码
+
+语法：
+
+```jsp
+<%
+	for (int i=1; i<5; i++) 
+	{
+%>
+
+	<H1>www.it315.org</H1>
+
+<%
+	}
+%> 
+```
+
+
+*JSP引擎在翻译JSP页面中，会将JSP脚本片断中的Java代码将被原封不动地放到Servlet的_jspService方法中*
+
+**JSP声明**
+
+语法：
+
+```jsp
+<%!
+	static 
+	{ 
+		System.out.println("loading Servlet!"); 
+	}
+	private int globalVar = 0;
+	public void jspInit()
+	{
+		System.out.println("initializing jsp!");
+	}
+%>
+<%!
+	public void jspDestroy()
+	{
+		System.out.println("destroying jsp!");
+	}
+%>
+
+```
+
+*JSP页面中编写的所有代码，默认会翻译到servlet的service方法中， 而Jsp声明中的java代码被翻译到_jspService方法的外面。*
+
+#### JSP注释
+
+语法：
+
+```jsp
+<%-- 注释信息 --%>
+```
+
+*JSP引擎在将JSP页面翻译成Servlet程序时，忽略JSP页面中被注释的内容。*
+
+#### JSP指令
+
+JSP指令（directive）是为JSP引擎而设计的，它们并不直接产生任何可见输出，而只是告诉引擎如何处理JSP页面中的其余部分
+
+* page指令
+
+page指令用于定义JSP页面的各种属性，无论page指令出现在JSP页面中的什么地方，它作用的都是整个JSP页面
+
+```jsp
+
+<%@ page contentType="text/html;charset=UTF-8" language="java" pageEncoding="utf-8" %>
+<%@ page import="java.util.Date"%>
+<%--写在一个指令中--%>
+<%@ page contentType="text/html;charset=UTF-8" import="java.util.Date"%> 
+```
+**Jsp乱码问题**
+
+1. page指令的pageEncoding属性说明JSP源文件的字符集编码  
+	JSP引擎将JSP源文件翻译成的Servlet源文件默认采用UTF-8编码，而JSP开发人员可以采用各种字符集编码来编写JSP源文件，因此，JSP引擎将JSP源文件翻译成Servlet源文件时，需要进行字符编码转换。 
+2. 通过page指令的contentType属性说明JSP源文件的字符集编码  
+	输出响应正文时出现的中文乱码问题 
+
+JSP 引擎自动导入下面的包：
+
+```java
+import java.lang.*;
+import javax.servlet.*;
+import javax.servlet.jsp.*;
+import javax.servlet.http.*;
+```
+
+* `include指令`
+
+`include指令`用于引入其它JSP页面，如果使用`include指令`引入了其它JSP页面，那么JSP引擎将把这两个JSP翻译成一个servlet。所以`include指令`引入通常也称之为静态引入。
+
+```jsp
+<%@ include file="/index.jsp"%>
+```
+
+* taglib指令
+
+taglib指令用于在JSP页面中导入标签库
+
+#### JSP内置对象
+
+JSP引擎在调用JSP对应的_jspServlet时，会传递或创建9个与web开发相关的对象供_jspServlet使用。JSP技术的设计者为便于开发人员在编写JSP页面时获得这些web对象的引用，特意定义了9个相应的变量，开发人员在JSP页面中通过这些变量就可以快速获得这9大对象的引用。
+
+* request
+* response
+* session
+* application(servletContext)
+* config(servletConfig)
+* page(this)
+* out(jspWriter)
+* pageContext
+* exception
+
+##### out对象
+
+out隐式对象的工作原理图 
+
+![out对象工作原理.png](/static/img/Servlet/out对象工作原理.png "out对象工作原理.png")
+
+**同时使用out和response.getwriter()输出数据问题**
+
+```java
+out.write("1");
+response.getWriter().write("2");
+// 由于out有缓冲区所以输出到页面的结果是21
+```
+
+只有向out对象中写入了内容，且满足如下任何一个条件时，out对象才去调用ServletResponse.getWriter方法，并通过该方法返回的PrintWriter对象将out对象的缓冲区中的内容真正写入到Servlet引擎提供的缓冲区中：
+
+* 设置page指令的buffer属性关闭了out对象的缓存功能
+* out对象的缓冲区已满
+* 整个JSP页面结束
+
+##### pageContext对象
+
+pageContext对象是JSP技术中最重要的一个对象，它代表JSP页面的运行环境，这个对象不仅封装了对其它8大隐式对象的引用，它自身还是一个域对象，可以用来保存数据。并且，这个对象还封装了web开发中经常涉及到的一些常用操作，例如引入和跳转其它资源、检索其它域对象中的属性等。 
+
+* getException() 返回exception隐式对象 
+* getPage() 返回page隐式对象
+* getRequest() 返回request隐式对象 
+* getResponse() 返回response隐式对象 
+* getServletConfig() 返回config隐式对象
+* getServletContext() 返回application隐式对象
+* getSession() 返回session隐式对象 
+* getOut() 返回out隐式对象
+
+作为域对象:
+
+* 访问pageContext域
+	- setAttribute(String name,Object value)
+	- getAttribute(String name)
+	- removeAttribute(String name)
+* 访问其它域的方法
+	- getAttribute(String name,int scope)
+	- setAttribute(String name, Object value,int scope)
+	- removeAttribute(String name,int scope)
+	- 代表各个域的常量
+		+ PageContext.APPLICATION_SCOPE
+		+ PageContext.SESSION_SCOPE
+		+ PageContext.REQUEST_SCOPE
+		+ PageContext.PAGE_SCOPE 
+* **findAttribute()  pageContext-request-session-application （*重点，查找各个域中的属性） EL表达式**
+* pageContext类中定义了一个forward方法和两个include方法来分别简化和替代req.getRequestDispatcher("/").forward(req,resp);方法和include方法。
+
+#### JSP标签
+
+JSP标签也称之为Jsp Action(JSP动作)元素，它用于在Jsp页面中提供业务逻辑功能，避免在JSP页面中直接编写java代码，造成jsp页面难以维护。
+
+##### 常用标签
+
+* `<jsp:include>`标签  
+* `<jsp:forward>`标签  
+* `<jsp:param>`标签  
+
+```jsp
+<jsp:include page="relativeURL | <%=expression%>">
+		<jsp:param name="parameterName" value="parameterValue|<%= expression %>" />
+	</jsp:include>
+
+<jsp:forward page="relativeURL | <%=expression%>">
+	<jsp:param name="parameterName" value="parameterValue|<%= expression %>" />
+	<jsp:param name="parameterName1" value="parameterValue1|<%= expression1 %>" />
+</jsp:include>
+```
+
+**`<jsp:include>`与`include指令`的比较 **
+
+`<jsp:include>`标签是动态引入， `<jsp:include>`标签涉及到的2个JSP页面会被翻译成2个servlet，这2个servlet的内容在执行时进行合并。
+而`include指令`是静态引入，涉及到的2个JSP页面会被翻译成一个servlet，其内容是在源文件级别进行合并。  
+不管是`<jsp:include>`标签，还是`include指令`，它们都会把两个JSP页面内容合并输出，所以这两个页面不要出现重复的HTML全局架构标签，否则输出给客户端的内容将会是一个格式混乱的HTML文档。
+
+
+### JSP映射
+
+```xml
+<servlet>
+	<servlet-name>SimpleJspServlet</servlet-name>
+	<jsp-file>/jsp/simple.jsp</jsp-file>
+	<load-on-startup>1</load-on-startup >
+</servlet>
+<servlet-mapping>
+	<servlet-name>SimpleJspServlet</servlet-name>
+	<url-pattern>/xxx/yyy.html</url-pattern>
+</servlet-mapping>
+```
+
+## 域对象
+
+* pageContext（page域） 
+* request（request域）
+* session（session域）
+* servletContext（application域）
+
 
 ----------
 
