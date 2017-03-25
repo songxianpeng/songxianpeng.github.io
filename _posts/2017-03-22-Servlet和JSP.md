@@ -6,8 +6,6 @@ categories: JavaEE
 published: true  
 ---  
 
-[TOC]
-
 ## Servlet
 
 ### 浏览器与服务器交互过程
