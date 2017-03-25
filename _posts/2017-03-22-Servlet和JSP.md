@@ -440,7 +440,6 @@ JSP标签也称之为Jsp Action(JSP动作)元素，它用于在Jsp页面中提�
 * session（session域）
 * servletContext（application域）
 
-
 ----------
 
 *以上概念总结于传智播客JavaWeb课程*
