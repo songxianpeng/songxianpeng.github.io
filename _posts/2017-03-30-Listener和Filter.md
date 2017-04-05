@@ -6,7 +6,6 @@ categories: JavaEE
 published: true  
 ---  
 
-
 ## Listener
 
 * 域对象操作监听器 要在web.xml中注册
