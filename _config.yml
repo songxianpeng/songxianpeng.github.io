@@ -1,8 +1,8 @@
 # ---------------- #
 #   Main Configs   #
 # ---------------- #
-baseurl:
-url: http://xpresssong.ga/
+baseurl:http://xpresssong.ga
+url: http://xpresssong.github.io
 date_format: "ordinal"
 title: Xpress Song
 subtitle: "南飞的驴"
