@@ -1,7 +1,7 @@
 # ---------------- #
 #   Main Configs   #
 # ---------------- #
-baseurl:http://xpresssong.ga
+baseurl:
 url: http://xpresssong.github.io
 date_format: "ordinal"
 title: Xpress Song
