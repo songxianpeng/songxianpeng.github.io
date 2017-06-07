@@ -1,7 +1,7 @@
 ---  
 lajout: post  
-title: Luence和Solr  
-tags: Luence Solr  
+title: Lucene和Solr  
+tags: Lucene Solr  
 categories: JavaEE  
 published: true  
 ---  
@@ -59,7 +59,7 @@ published: true
 * 进行检索时，先从检索词汇表（索引表）开始，然后找到相对应的文档
 * 倒排索引的维护一般采用先删除后创建的方式替代更新操作，更新操作代价较高
 
-## Luence
+## Lucene
 
 ### 创建索引
 
@@ -286,4 +286,4 @@ public void highlighter(String[] keywords) throws IOException, InvalidTokenOffse
 
 ------
 
-*以上资源总结于传值博客Luence教程*
+*Lucene教程*
