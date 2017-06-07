@@ -147,7 +147,7 @@ public void searchDoc(String[] keywords, String directoryPath) throws IOExceptio
 
 #### Query
 
-* TermQuery 关键词查询
+##### TermQuery 关键词查询
 
 ```java
 public void termQueryTest() throws Exception {
@@ -158,20 +158,143 @@ public void termQueryTest() throws Exception {
 }
 ```
 
-* TermRangeQuery和NumericRangeQuery
+##### TermRangeQuery和NumericRangeQuery 范围查询
 
 ```java
 public void rangeQueryTest() throws Exception {
     boolean includeLower = true;
     boolean includeUpper = true;
-    // supplied range according to Byte.compareTo(Byte).测试中返回不可预知结果
-    // BytesRef lowerTerm = new BytesRef("book".getBytes());
-    // BytesRef upperTerm = new BytesRef("book3".getBytes());
-    // TermRangeQuery query = new TermRangeQuery("name", lowerTerm, upperTerm, includeLower, includeUpper);
+    // supplied range according to Byte.compareTo(Byte).数字2要补0才会算出数字效果
+    // BytesRef lowerTerm = new BytesRef("02");
+    // BytesRef upperTerm = new BytesRef("20");
+    // Query query = new TermRangeQuery("size", lowerTerm, upperTerm, includeLower, includeUpper);
     // 使用数字限定范围
     NumericRangeQuery query =  NumericRangeQuery.newIntRange("order", 0, 77, includeLower, includeUpper);
     indexAndSearchService.searchDoc(query, directoryPath);
 }
+```
+
+##### WildcardQuery 通配符查询
+
+* `*`：匹配任意个任意字符
+* `?`：匹配一个任意字符
+
+```java
+Query query = new WildcardQuery(new Term("name","c*"));
+Query query = new WildcardQuery(new Term("name","ja??"));
+searchService.searchByQuery(query, indexPath);
+```
+
+##### PhraseQuery 短语查询
+
+```java
+PhraseQuery query = new PhraseQuery();
+// 可以指定短语位置
+// query.add(new Term("content", "c", 5));
+query.add(new Term("content", "c"));
+query.add(new Term("content", "指针"));
+query.setSlop(20);// 最大间词语个数
+searchService.searchByQuery(query, indexPath);
+```
+
+##### BooleanQuery 组合查询
+
+BooleanClause.Occur
+
+* MUST和MUST：取交集
+* MUST和MUST_NOT：取差集
+* SHOULD和SHOULD：取并集
+
+* MUST和SHOULD：结果为MUST结果
+* MUST_NOT和MUST_NOT：无意义，无结果
+    - MUST_NOT：单独使用无意义，无结果
+* MUST_NOT和SHOULD：取差集
+    - SHOULD：单独使用同MUST
+
+```java
+PhraseQuery query1 = new PhraseQuery();
+query1.add(new Term("content", "对象"));
+query1.add(new Term("content", "指针"));
+query1.setSlop(20);// 最大间词语个数
+// Query query = new WildcardQuery(new Term("content","对象"));
+// Query query = new WildcardQuery(new Term("name","ja??"));
+Query query2 = new TermQuery(new Term("name","kotlin"));
+// Query query = new TermQuery(new Term("name", "j"));
+
+BooleanQuery query = new BooleanQuery();
+query.add(query1, BooleanClause.Occur.MUST);
+query.add(query2, BooleanClause.Occur.MUST);
+searchService.searchByQuery(query, indexPath);
+```
+
+#### DateTools
+
+```java
+DateTools.dateToString(new Date() , DateTools.Resolution.DAY);// 20170607
+DateTools.dateToString(new Date() , DateTools.Resolution.HOUR);// 2017060707
+DateTools.dateToString(new Date() , DateTools.Resolution.MILLISECOND);// 20170607073809118
+DateTools.dateToString(new Date() , DateTools.Resolution.MINUTE);// 201706070738
+```
+
+#### 查询语法
+
+```shell
+# TermQuery
+name:j
+# TermRangeQuery
+size:[02 TO 20]
+# NumericRangeQuery
+order:[1 TO 20]
+# WildcardQuery
+name:ja??
+# PhraseQuery
+content:"? 对象 ? 指针"
+content:"对象 指针"
+content:"对象 指针"~20
+# BooleanQuery
++content:"对象 指针"~20 +name:kotlin
+# 相关度
+name:我^3.0 content:我^2.0
+```
+
+查询语法使用QueryParser与MultiFieldQueryParser进行解析
+
+* `+`和`-`：表示后面条件是MUST还是MUST_NOT
+* AND：MUST
+* OR：SHOULD
+* NOT:MUST_NOT
+* 可以使用括号就行逻辑组合
+
+#### 排序
+
+* 相关度（默认），在搜索是指定Field的boost，默认1.0f
+* 自定义排序，使用Sort，默认为生序
+
+```java
+// name:我^3.0 content:我^2.0
+Map<String, Float> stringFloatMap = new HashMap<String, Float>();
+stringFloatMap.put("name", 3.0f);// 指定boost，默认1.0f
+stringFloatMap.put("content", 2.0f);
+Analyzer analyzer = new MMSegAnalyzer();
+MultiFieldQueryParser queryParser = new MultiFieldQueryParser(Version.LUCENE_43, new String[]{"name", "content"}, analyzer, stringFloatMap);
+Query query = queryParser.parse("我是");
+searchService.searchByQuery(query, indexPath);
+```
+
+```java
+Sort sort = new Sort();
+boolean reverse = false;// order字段降序排列
+sort.setSort(new SortField("order", SortField.Type.INT, reverse));
+TopDocs topDocs = indexSearcher.search(query, 200, sort);
+```
+
+#### 过滤器
+
+对搜索结果进行过滤，效率低
+
+```java
+Filter filter = NumericRangeFilter.newIntRange("order", 35, 45, true, true);
+TopDocs topDocs = indexSearcher.search(query, filter, 200, sort);
 ```
 
 ### 分词
