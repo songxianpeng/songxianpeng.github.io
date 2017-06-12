@@ -227,6 +227,15 @@ query.add(query2, BooleanClause.Occur.MUST);
 searchService.searchByQuery(query, indexPath);
 ```
 
+##### FuzzyQuery  模糊查询
+
+FuzzyQuery的相似度计算使用的Damerau-Levenshtein，FuzzyQuery的transpositions属性设置为false表示启用Damerau-Levenshtein来计算相似度
+
+```java
+FuzzyQuery query = new FuzzyQuery(new Term("content","面前"));
+searchService.searchByQuery(query, indexPath);
+```
+
 #### DateTools
 
 ```java
@@ -405,7 +414,9 @@ public void highlighter(String[] keywords) throws IOException, InvalidTokenOffse
 // 我是<font color='red'>中</font><font color='red'>国</font>人
 ```
 
+### 数据同步
 
+![sync.png](/static/img/Lucene/sync.png "sync.png")
 
 ------
 
