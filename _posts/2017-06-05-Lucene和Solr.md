@@ -80,7 +80,7 @@ public void indexDoc(String directoryPath) throws IOException {
     IndexableField name = new TextField("name", "c++", Field.Store.YES);
     IndexableField author = new TextField("author", "bob smith", Field.Store.YES);
     IndexableField desc = new TextField("desc", "this is a c book", Field.Store.YES);
-    IndexableField size = new TextField("size", "13", Field.Store.YES);
+    IndexableField size = new StringField("size", "13kb", Field.Store.YES);
     // custom index and store
     FieldType fieldType = new FieldType();
     fieldType.setIndexed(false);// not index
@@ -112,6 +112,26 @@ public void indexDoc(String directoryPath) throws IOException {
 * Index.NOT_ANALYZED_NOT_NORMS 既部分词也不存储norms信息
 * Index.NO 不进行索引
 
+**4.0以后Field.Index废弃**
+
+* StringField 不分词并索引的字段，搜索时整字段匹配
+* TextField 分词并索引
+* StoredField 仅保存，不索引
+
+另外，权重信息可以在Field中指定
+
+```java
+FieldType type = new FieldType();
+type.setIndexed(true);
+type.setStored(true);
+type.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS);
+indexableFields.add(new Field("content", content, type));
+```
+
+* FieldInfo.IndexOptions.DOCS_ONLY 索引文档编号
+* FieldInfo.IndexOptions.DOCS_AND_FREQS 索引文档编号、关键词频率
+* FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS 索引文档编号、关键词频率、位置
+* FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS 索引文档编号、关键词频率、位置、每个关键字偏移量
 
 #### 索引库
 
