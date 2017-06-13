@@ -97,6 +97,22 @@ public void indexDoc(String directoryPath) throws IOException {
 }
 ```
 
+#### Field.Store 存储域选项
+
+* Field.Store.YES
+    - 完全把这个域中的内容完全存储到文件中，可以还原文件内容
+* Field.Store.NO
+    - 不存储这个域中的内容到文件中，但是不影响索引，无法还原文件内容
+
+#### Field.Index 索引选项
+
+* Index.ANALYZED 进行分词和索引
+* Index.NOT_ANALYZED 进行索引，但是不进行分词
+* Index.ANALYZED_NOT_NORMS 进行分词但是不存储norms信息，这个norms信息包含了索引时间和权值等
+* Index.NOT_ANALYZED_NOT_NORMS 既部分词也不存储norms信息
+* Index.NO 不进行索引
+
+
 #### 索引库
 
 * 文件系统索引库；FSDirectory
