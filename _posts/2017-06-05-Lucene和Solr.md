@@ -6,6 +6,8 @@ categories: JavaEE
 published: true  
 ---  
 
+[TOC]
+
 ## 信息检索与全文检索
 
 信息检索是从信息集合中找出与用户需求相关的信息，包括文本、图像、视频、音频等多媒体信息
@@ -152,12 +154,46 @@ public void directoryTest(String directoryPath) throws IOException {
 }
 ```
 
+##### 索引库文件
+
+* fnm文件 存储哪些域信息
+* fdt、fdx文件 Store.YES的域内容
+* frq文件 出现次数
+* nrm文件 评分信息
+* prx文件 偏移量
+* tii、tis 文件 索引信息
+
 ### 查询索引
+
+```java
+private static DirectoryReader DIRECTORY_READER;
+private static final String INDEX_PATH = "";
+public static synchronized DirectoryReader getReader() {
+    try {
+        if (DIRECTORY_READER == null) {
+            DIRECTORY_READER = DirectoryReader.open(new SimpleFSDirectory(new File(INDEX_PATH)));
+        } else {
+            // 如果有变化重新打开一个 使变更生效
+            DirectoryReader indexReader = DirectoryReader.openIfChanged(DIRECTORY_READER);
+            if (indexReader != null) {
+            	DIRECTORY_READER.close();
+                DIRECTORY_READER = indexReader;
+            }
+        }
+    } catch (IOException e) {
+        throw new RuntimeException(e);
+    }
+    return DIRECTORY_READER;
+}
+```
 
 ```java
 public void searchDoc(String[] keywords, String directoryPath) throws IOException {
     Directory directory = new SimpleFSDirectory(new File(directoryPath));
     IndexReader indexReader = DirectoryReader.open(directory);
+    System.out.println(indexReader.numDocs());// 文档总数
+    System.out.println(indexReader.numDeletedDocs());// 删除文档总数
+    System.out.println(indexReader.maxDoc());// 存储过的做大存储量
     // init directory
     IndexSearcher indexSearcher = new IndexSearcher(indexReader);
     // query
@@ -263,13 +299,34 @@ query.add(query2, BooleanClause.Occur.MUST);
 searchService.searchByQuery(query, indexPath);
 ```
 
-##### FuzzyQuery  模糊查询
+##### FuzzyQuery 模糊查询
 
 FuzzyQuery的相似度计算使用的Damerau-Levenshtein，FuzzyQuery的transpositions属性设置为false表示启用Damerau-Levenshtein来计算相似度
 
 ```java
 FuzzyQuery query = new FuzzyQuery(new Term("content","面前"));
 searchService.searchByQuery(query, indexPath);
+```
+
+##### PrefixQuery 前缀查询
+
+```java
+PrefixQuery query = new PrefixQuery(new Term("name", "c"));
+```
+
+##### QueryParser
+
+详情参看查询语法
+
+```java
+QueryParser queryParser = new QueryParser(Version.LUCENE_43, "name", new MMSegAnalyzer());
+Query query = queryParser.parse("java c");
+searchService.searchByQuery(query, indexPath);
+
+// 更改默认分隔符 默认是or
+queryParser.setDefaultOperator(QueryParser.Operator.AND);
+// 设置首位通配符开关，因为效率很低默认关闭
+queryParser.setAllowLeadingWildcard(true);
 ```
 
 #### DateTools
@@ -342,7 +399,97 @@ Filter filter = NumericRangeFilter.newIntRange("order", 35, 45, true, true);
 TopDocs topDocs = indexSearcher.search(query, filter, 200, sort);
 ```
 
+#### 分页
+
+> lucene3.5之前分页提供的方式为再查询方式（每次查询全部记录，然后取其中部分记录，这种方式用的最多），lucene官方的解释：由于我们的速度足够快。处理海量数据时，内存容易内存溢出。  
+> lucene3.5以后提供一个searchAfter，这个是在特大数据量采用（亿级数据量），速度相对慢一点，像google搜索图片的时候，点击更多，然后再出来一批。这种方式就是把数据保存在缓存里面。然后再去取。
+
+```java
+// 再查询方式
+int skip = (pageNum - 1) * pageSize;
+int max = skip + pageSize;
+TopDocs topDocs = indexSearcher.search(query, max, sort);
+int totalHits = topDocs.totalHits;
+System.out.println(totalHits);
+max = (max > totalHits ? totalHits : max);// 计算总数
+for (int i = skip; i < max; i++) {
+    // 通过查询结果取出文档
+    Document doc = indexSearcher.doc(topDocs.scoreDocs[i].doc);
+    System.out.println(doc.get("name"));
+    System.out.println(doc.get("author"));
+    System.out.println("---------------");
+}
+```
+
+```java
+// searchAfter方式
+int skip = (pageNum - 1) * pageSize;
+int max = skip + pageSize;// 计算最大查询总数
+
+// 首先获取after
+TopDocs topDocs = indexSearcher.search(query, max, sort);
+
+ScoreDoc after = null;
+if (skip != 0) {
+    after = topDocs.scoreDocs[skip - 1];
+}
+// 通过searchAfter完成分页
+TopDocs result = indexSearcher.searchAfter(after, query, max, sort);
+for (ScoreDoc scoreDoc : result.scoreDocs) {
+    Document doc = indexSearcher.doc(scoreDoc.doc);
+    System.out.println("BOOK:" + scoreDoc.doc);
+    System.out.println(doc.get("name"));
+    System.out.println(doc.get("author"));
+}
+```
+
+
+### 删除索引
+
+```java
+// 文档删除
+IndexWriter indexWriter = new IndexWriter(directory, indexWriterConfig);
+indexWriter.deleteDocuments(new Term("name", keyword));// 删除查询到的文档
+indexWriter.forceMergeDeletes();// 未merge之前可以恢复4.0之前版本
+indexWriter.commit();
+indexWriter.close();
+
+// 文档恢复 4.0以后不再支持
+indexReader.undeleteAll();
+```
+
+### 更新索引
+
+Lucene没有提供更新操作，更新实质上是先删除再添加，因为更新索引很消耗性能
+
+```java
+indexWriter.updateDocument(new Term("id","1"),document);
+```
+
 ### 分词
+
+#### 分词器种类
+
+* SimpleAnalyzer
+* StandardAnalyzer
+* StopAnalyzer（StopwordAnalyzerBase）
+* WhitespaceAnalyzer
+
+#### TokenStream
+
+##### TokenStream存储结构
+
+![TokenStream](/static/img/Lucene/TokenStream.png "TokenStream")
+
+##### Reader处理成TokenStream
+
+![Reader2TokenStream.png](/static/img/Lucene/Reader2TokenStream.png "Reader2TokenStream.png")
+
+Tokenizer extends TokenStream：将一组数据划分不同的词汇单元
+TokenFilter extends TokenStream：对词汇单元单元进行过滤
+
+![Tokenizer.png](/static/img/Lucene/Tokenizer.png "Tokenizer.png")
+![TokenFilter.png](/static/img/Lucene/TokenFilter.png "TokenFilter.png")
 
 ```java
 public List<String> analyzerTest(String content) throws IOException {
@@ -380,12 +527,14 @@ public List<String> analyzerDemo(String content) {
         CharTermAttribute term = tokenStream.addAttribute(CharTermAttribute.class);
         // 获取词元文本属性
         TypeAttribute type = tokenStream.addAttribute(TypeAttribute.class);
+        // 位置增量
+        PositionIncrementAttribute position = tokenStream.addAttribute(PositionIncrementAttribute.class);
         // 重置TokenStream（重置StringReader）
         tokenStream.reset();
         // 迭代获取分词结果
         while (tokenStream.incrementToken()) {
             String word = term.toString();
-            System.out.println(offset.startOffset() + " - "
+            System.out.println(position.getPositionIncrement() + " " + offset.startOffset() + " - "
                     + offset.endOffset() + " : " + word + " | "
                     + type.type());
             strings.add(word);
