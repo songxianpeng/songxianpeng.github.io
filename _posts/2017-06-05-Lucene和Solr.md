@@ -384,6 +384,10 @@ searchService.searchByQuery(query, indexPath);
 ```
 
 ```java
+// Sort.RELEVANCE 根据分支排序
+// Sort.INDEXORDER 根据索引号排序
+
+// 根据不同的域进行排序
 Sort sort = new Sort();
 boolean reverse = false;// order字段降序排列
 sort.setSort(new SortField("order", SortField.Type.INT, reverse));
@@ -395,7 +399,12 @@ TopDocs topDocs = indexSearcher.search(query, 200, sort);
 对搜索结果进行过滤，效率低
 
 ```java
+// 数字范围
 Filter filter = NumericRangeFilter.newIntRange("order", 35, 45, true, true);
+// 字符串范围
+filter = new TermRangeFilter("name", new BytesRef("aaa"), new BytesRef("bbb"), true, true);
+// 通配符
+filter = new QueryWrapperFilter(new WildcardQuery(new Term("name", "j*")));
 TopDocs topDocs = indexSearcher.search(query, filter, 200, sort);
 ```
 
@@ -477,6 +486,8 @@ indexWriter.updateDocument(new Term("id","1"),document);
 
 #### TokenStream
 
+分词器组偏好处理之后得到的一个流，这个流中存储的各种信息，可以通过TokenStream有效的获取到分词单元信息
+
 ##### TokenStream存储结构
 
 ![TokenStream](/static/img/Lucene/TokenStream.png "TokenStream")
@@ -485,11 +496,18 @@ indexWriter.updateDocument(new Term("id","1"),document);
 
 ![Reader2TokenStream.png](/static/img/Lucene/Reader2TokenStream.png "Reader2TokenStream.png")
 
-Tokenizer extends TokenStream：将一组数据划分不同的词汇单元
-TokenFilter extends TokenStream：对词汇单元单元进行过滤
+* Tokenizer extends TokenStream：将一组数据划分不同的词汇单元，将Reader进行分词操作
+* TokenFilter extends TokenStream：对词汇单元单元进行过滤
 
 ![Tokenizer.png](/static/img/Lucene/Tokenizer.png "Tokenizer.png")
+
 ![TokenFilter.png](/static/img/Lucene/TokenFilter.png "TokenFilter.png")
+
+* Attribute
+    - PositionIncrementAttribute 位置增量属性，存储语汇单元之间的距离
+    - OffsetAttribute 每个语汇单元的位置偏移量
+    - CharTermAttribute 存储每一个语汇单元的信息（分词单元信息）
+    - TypeAttribute 使用的分词器的类型信息
 
 ```java
 public List<String> analyzerTest(String content) throws IOException {
@@ -568,6 +586,85 @@ public List<String> analyzerDemo(String content) {
 // 是
 // 一个
 // 中国人
+```
+
+#### 自定义分词
+
+```java
+// 组合实现分词器功能
+public class MyAnalyzer extends Analyzer {
+    private CharArraySet stopWordSet;
+    public MyAnalyzer() {
+        // 增加默认的英文停用词
+        stopWordSet = new CharArraySet(Version.LUCENE_43, StopAnalyzer.ENGLISH_STOP_WORDS_SET.size(), true);
+        stopWordSet.addAll(StopAnalyzer.ENGLISH_STOP_WORDS_SET);
+    }
+    public MyAnalyzer(String[] stopWords) {
+        this();
+        // 增加自定义停用词
+        CharArraySet c = StopFilter.makeStopSet(Version.LUCENE_43, stopWords);
+        this.stopWordSet.addAll(c);
+    }
+    @Override
+    protected TokenStreamComponents createComponents(String fieldName, Reader reader) {
+        // 通过单词分词
+        LetterTokenizer letterTokenizer = new LetterTokenizer(Version.LUCENE_43, reader);
+        // 忽略大小写
+        LowerCaseFilter lowerCaseFilter = new LowerCaseFilter(Version.LUCENE_43, letterTokenizer);
+        // 停用词
+        StopFilter stopFilter = new StopFilter(Version.LUCENE_43, lowerCaseFilter, stopWordSet);
+        return new TokenStreamComponents(letterTokenizer, stopFilter);
+    }
+}
+```
+
+```java
+// 同义词分词器
+public class SameWordsFilter extends TokenFilter {
+    private PositionIncrementAttribute positionIncrementAttribute;
+    private CharTermAttribute charTermAttribute;
+    private Stack<String> sameWordStack = new Stack<String>();
+    private Map<String, String[]> sameWords = new HashMap<String, String[]>();
+    public SameWordsFilter(TokenStream input) {
+        super(input);
+    }
+    public SameWordsFilter(TokenStream input, Map<String, String[]> sameWords) {
+        this(input);
+        this.sameWords = sameWords;
+        // 获取位置信息
+        positionIncrementAttribute = this.addAttribute(PositionIncrementAttribute.class);
+        // 获取字符信息
+        charTermAttribute = this.addAttribute(CharTermAttribute.class);
+    }
+    @Override
+    public final boolean incrementToken() throws IOException {
+        if (!sameWordStack.empty()) {
+            // 将同义词设置到指定位置
+            charTermAttribute.setEmpty();
+            charTermAttribute.append(sameWordStack.pop());// 取出同义词
+            positionIncrementAttribute.setPositionIncrement(0);
+            return true;
+        }
+        if (this.input.incrementToken()) {// 下一个分词
+            // 取出下一同义词
+            getSameWords(charTermAttribute.toString());
+            return true;
+        }
+        return false;
+    }
+    // 获取同义词并存储用于处理
+    private boolean getSameWords(String word) {
+        String[] sames = sameWords.get(word);
+        if (ArrayUtils.isEmpty(sames)) {
+            return false;
+        }
+        for (String same : sames) {
+            sameWordStack.push(same);
+        }
+        return true;
+
+    }
+}
 ```
 
 ### 高亮器
