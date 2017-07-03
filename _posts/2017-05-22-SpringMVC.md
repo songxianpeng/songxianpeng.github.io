@@ -1,5 +1,5 @@
 ---  
-lajout: post  
+layout: post  
 title: SpringMVC  
 tags: SpringMVC  
 categories: JavaEE  

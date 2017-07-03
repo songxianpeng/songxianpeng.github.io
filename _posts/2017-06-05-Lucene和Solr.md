@@ -1,5 +1,5 @@
 ---  
-lajout: post  
+layout: post  
 title: Lucene和Solr  
 tags: Lucene Solr  
 categories: JavaEE  
@@ -45,7 +45,7 @@ published: true
 
 * 单词分词：一个字分成一个词（StandardAnalyzer）
 * 二分法分词：按每两个字进行切分（CJKAnalyzer）
-* 词典分词：按照某种算法构造词，去匹配已经建好的词库集合，匹配到就分为词语（MMAnalyzer极易中文分词、庖丁分词、IK Analyzer等）
+* 词典分词：按照某种算法构造词，去匹配已经建好的词库集合，匹配到就分为词语（MMAnalyzer极易中文分词、庖丁分词、IK Analyzer等）  
 
 
 #### 索引结构
@@ -405,6 +405,68 @@ filter = new TermRangeFilter("name", new BytesRef("aaa"), new BytesRef("bbb"), t
 filter = new QueryWrapperFilter(new WildcardQuery(new Term("name", "j*")));
 TopDocs topDocs = indexSearcher.search(query, filter, 200, sort);
 ```
+
+#### 评分
+
+##### 自定义评分
+
+###### 拆分文档分数
+
+1. 创建一个类继承CustomScoreQuery，覆盖getCustomScoreProvider()方法
+2. 创建一个类继承CustomScoreProvider，覆盖customScore()方法
+
+```java
+public class MyCustomScoreQuery extends CustomScoreQuery {
+    public MyCustomScoreQuery(Query subQuery) {
+        super(subQuery);
+    }
+    @Override
+    protected CustomScoreProvider getCustomScoreProvider(AtomicReaderContext context) throws IOException {
+        return new MyCustomScoreProvider(context);
+    }
+    private class MyCustomScoreProvider extends CustomScoreProvider {
+        private BinaryDocValues names;
+
+        MyCustomScoreProvider(AtomicReaderContext context) {
+            super(context);
+            try {
+                names = FieldCache.DEFAULT.getTerms(context.reader(), "name", true);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+        @Override
+        public float customScore(int doc, float subQueryScore, float valSrcScore) throws IOException {
+            System.out.println("subQueryScore:" + subQueryScore + "valSrcScore:" + valSrcScore);
+            float score = valSrcScore * subQueryScore;// 自定义评分计算规则
+            BytesRef bytesRef = names.get(doc);
+            String string = bytesRef.utf8ToString();
+            System.out.println("string" + doc + ":" + string);
+            if (string.contains("r")) {
+                return score * 1.5f;// 根据自己的规则修改评分
+            }
+            return score;
+        }
+    }
+}
+```
+
+```java
+Map<String, Float> stringFloatMap = new HashMap<String, Float>();
+stringFloatMap.put("name", 3.0f);
+stringFloatMap.put("content", 2f);
+Analyzer analyzer = new MMSegAnalyzer();
+MultiFieldQueryParser queryParser = new MultiFieldQueryParser(Version.LUCENE_43, new String[]{"name", "content"}, analyzer, stringFloatMap);
+queryParser.setAllowLeadingWildcard(true);
+Query query = queryParser.parse("(name:*a* content:*c*) (name:*c* content:*y*) (name:*a* content:*k*) (name:*k* content:*k*)");
+// 评分query
+ConstantScoreQuery constantScoreQuery = new ConstantScoreQuery(query);
+// 自定义评分query
+MyCustomScoreQuery myCustomScoreQuery = new MyCustomScoreQuery(query, constantScoreQuery);
+searchService.searchByQuery(myCustomScoreQuery, indexPath, 1, 22);
+```
+
+###### 自定义字段评分
 
 #### 分页
 

@@ -1,5 +1,5 @@
 ---  
-lajout: post  
+layout: post  
 title: Servlet和JSP  
 tags: Servlet JSP  
 categories: JavaEE  

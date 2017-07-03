@@ -1,5 +1,5 @@
 ---  
-lajout: post  
+layout: post  
 title: Listener和Filter  
 tags: Listener Filter  
 categories: JavaEE  

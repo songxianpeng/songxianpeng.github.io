@@ -1,5 +1,5 @@
 ---  
-lajout: post  
+layout: post  
 title: Cookie和Session  
 tags: Cookie Session  
 categories: JavaEE  
