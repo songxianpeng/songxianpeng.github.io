@@ -163,6 +163,10 @@ public void directoryTest(String directoryPath) throws IOException {
 
 ### 查询索引
 
+#### DirectoryReader
+
+##### openIfChanged方式
+
 ```java
 private static DirectoryReader DIRECTORY_READER;
 private static final String INDEX_PATH = "";
@@ -212,6 +216,65 @@ public void searchDoc(String[] keywords, String directoryPath) throws IOExceptio
         System.out.println(doc.get("content"));
         System.out.println("-------------");
     }
+}
+```
+
+##### SearchManager和近实时搜索
+
+```java
+private static SearcherManager searcherManager;
+private static TrackingIndexWriter trackingIndexWriter;
+private static ControlledRealTimeReopenThread controlledRealTimeReopenThread;
+
+static {
+    try {
+        INDEX_PATH = SearchService.class.getClassLoader().getResource("indexes").getPath();
+        SimpleFSDirectory dir = new SimpleFSDirectory(new File(INDEX_PATH));
+        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Version.LUCENE_43, new IKAnalyzer(true)));
+        indexWriter.commit();// 建立索引库基本信息防止searcherManager初始化报错
+
+        // 初始化SearcherFactory
+        SearcherFactory searcherFactory = new SearcherFactory();
+        searcherManager = new SearcherManager(dir, searcherFactory);
+
+        //ControlledRealTimeReopenThread 构造是必须有的，主要将writer封装，每个方法都没有commit 操作。
+        trackingIndexWriter = new TrackingIndexWriter(indexWriter);
+        //创建线程，用于管理writer和searcher的近实时同步
+        double targetMaxStaleSec = 5.0;
+        double targetMinStaleSec = 0.025;
+        controlledRealTimeReopenThread = new ControlledRealTimeReopenThread<IndexSearcher>(trackingIndexWriter, searcherManager, targetMaxStaleSec, targetMinStaleSec);
+        controlledRealTimeReopenThread.setDaemon(true);//设为后台进程
+        controlledRealTimeReopenThread.setName("定时清理缓存");
+        controlledRealTimeReopenThread.start();//启动线程
+
+    } catch (IOException e) {
+        e.printStackTrace();
+    }
+}
+
+public void search(Query query) throws IOException {
+    //searcherManager.maybeRefresh(); // 刷新由线程管理
+    IndexSearcher indexSearcher = searcherManager.acquire();
+    //...
+    searcherManager.release(indexSearcher);
+}
+
+public void add(Query query) throws IOException {
+    trackingIndexWriter.addDocument(document);
+}
+
+@Override
+protected void finalize() throws Throwable {
+    super.finalize();
+    controlledRealTimeReopenThread.close();
+    commitChanges();
+    searcherManager.close();
+}
+
+// 用于检查可能的更新操作,定时刷新保证效率
+@Scheduled
+public void commitChanges() throws IOException {
+    trackingIndexWriter.getIndexWriter().commit();
 }
 ```
 
@@ -327,6 +390,31 @@ queryParser.setDefaultOperator(QueryParser.Operator.AND);
 queryParser.setAllowLeadingWildcard(true);
 ```
 
+###### 自定义QueryParser
+
+1. 对于某些(FuzzyQuery,WildcardQuery)查询会将查询效率降低，所以考虑将这些查询取消
+2. 在具体的查询时，很有可能获取的是一个未提供功能（数字、日期）的范围查询，所以考虑扩展
+
+``java
+public class CustomQueryParser extends QueryParser {
+    public CustomQueryParser(Version matchVersion, String f, Analyzer a) {
+        super(matchVersion, f, a);
+    }
+    @Override
+    protected Query getWildcardQuery(String field, String termStr) throws ParseException {
+        // throw new ParseException("通配符查询已经禁用");
+        return getFieldQuery(field, termStr, true);
+    }
+    @Override
+    protected Query getRangeQuery(String field, String part1, String part2, boolean startInclusive, boolean endInclusive) throws ParseException {
+        if ("order".equals(field)) {
+            return NumericRangeQuery.newIntRange(field, Integer.valueOf(part1), Integer.parseInt(part2), startInclusive, endInclusive);
+        }
+        return super.getRangeQuery(field, part1, part2, startInclusive, endInclusive);
+    }
+}
+```
+
 #### DateTools
 
 ```java
@@ -404,6 +492,39 @@ filter = new TermRangeFilter("name", new BytesRef("aaa"), new BytesRef("bbb"), t
 // 通配符
 filter = new QueryWrapperFilter(new WildcardQuery(new Term("name", "j*")));
 TopDocs topDocs = indexSearcher.search(query, filter, 200, sort);
+```
+
+##### 自定义Filter
+
+```java
+public class MyCustomFilter extends Filter {
+    // private String[] blackList = new String[]{"19", "18", "17", "29", "117","114", "16", "15", "14"};
+    private int[] blackList = new int[]{19, 18, 17, 29, 117, 16, 15, 14};
+    @Override
+    public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
+        AtomicReader reader = context.reader();
+        int maxDocs = reader.maxDoc();
+        OpenBitSet openBitSet = new OpenBitSet(maxDocs);
+        openBitSet.set(0, maxDocs);// 全部允许
+        // for (String item : blackList) {
+        for (int item : blackList) {
+            // 数字类型处理（存储时numericType为INT）
+            BytesRefBuilder bytesRefBuilder = new BytesRefBuilder();
+            NumericUtils.intToPrefixCoded(item, 0, bytesRefBuilder);
+            // 获取符合要求的字段并禁用
+            DocsAndPositionsEnum prders = reader.termPositionsEnum(new Term("order", bytesRefBuilder.toBytesRef()));
+            // DocsAndPositionsEnum prders = reader.termPositionsEnum(new Term("order", item));
+            if (prders == null) {
+                continue;
+            }
+            int i;
+            while ((i = prders.nextDoc()) != NO_MORE_DOCS) {
+                openBitSet.clear(i);// 删除黑名单
+            }
+        }
+        return openBitSet;
+    }
+}
 ```
 
 #### 评分
@@ -759,6 +880,185 @@ public void highlighter(String[] keywords) throws IOException, InvalidTokenOffse
 ### 数据同步
 
 ![sync.png](/static/img/Lucene/sync.png "sync.png")
+
+### 工具
+
+#### Luke索引查看工具
+
+Luke is the GUI tool for introspecting your Lucene / Solr / Elasticsearch index.
+
+<https://github.com/DmitryKey/luke>
+
+#### Tika内容抽取工具
+
+Tika是一个内容抽取的工具集合(a toolkit for text extracting)。它集成了POI, Pdfbox 并且为文本抽取工作提供了一个统一的界面。
+
+<http://tika.apache.org/>
+
+```java
+// 直接使用tika
+FileInputStream fileInputStream = FileUtils.openInputStream(new File("c:\\Users\\xpress\\Downloads\\Documents\\Java求职宝典2014版.pdf"));
+Metadata metadata = new Metadata();
+
+Tika tika = new Tika();
+try {
+    String string = tika.parseToString(fileInputStream, metadata);
+    for (String name : metadata.names()) {
+        System.out.println(name + ":" + metadata.get(name));
+    }
+    System.out.println(string);// 获取的文档内容
+} catch (TikaException e) {
+    e.printStackTrace();
+}
+
+// 使用Parser
+AutoDetectParser autoDetectParser = new AutoDetectParser();
+int writeLimit = 2000000;
+BodyContentHandler bodyContentHandler = new BodyContentHandler(writeLimit);
+ParseContext parseContext = new ParseContext();
+parseContext.set(AutoDetectParser.class, autoDetectParser);
+FileInputStream fileInputStream = FileUtils.openInputStream(new File("Java.pdf"));
+try {
+    Metadata metadata = new Metadata();
+    autoDetectParser.parse(fileInputStream, bodyContentHandler, metadata, parseContext);
+    for (String name : metadata.names()) {// 元信息
+        System.out.println(name+":"+metadata.get(name));
+    }
+    System.out.println(bodyContentHandler.toString());// 获取的文档内容
+} catch (SAXException e) {
+    e.printStackTrace();
+} catch (TikaException e) {
+    e.printStackTrace();
+} finally {
+    if (fileInputStream != null) {
+        fileInputStream.close();
+    }
+}
+```
+
+## Solr
+
+### 配置
+
+#### solr.home配置
+
+* 在web.xml中
+
+```xml
+ <env-entry>
+    <env-entry-name>solr/home</env-entry-name>
+    <env-entry-type>java.lang.String</env-entry-type>
+    <env-entry-value>/home/xpress/Solr/solrhome</env-entry-value>
+</env-entry>
+```
+
+* 在server.xml中
+
+```xml
+<Context path="" docBase="solr" reloadable="false" crossContext="true">
+    <Environment name="solr/home" type="java.lang.String" value="/home/xpress/Solr/solrhome" override="true"/>
+</Context>
+```
+
+#### Schema
+
+managed-schema
+
+```xml
+<?xml version="1.0" encoding="UTF-8" ?>
+<schema name="dbcore" version="1.6">
+
+    <field name="_version_" type="long" indexed="true" stored="true"/>
+    <field name="_root_" type="string" indexed="true" stored="false"/>
+    <field name="text" type="text_cn" indexed="true" stored="false" multiValued="true"/>
+    <field name="id" type="string" indexed="true" stored="true" required="true" multiValued="false"/>
+    <field name="name" type="text_cn" indexed="true" stored="true" />
+    <field name="description" type="text_cn" indexed="true" stored="true" />
+    <!-- 配合copy，多字段联合查询 -->
+    <field name="all" type="text_cn" indexed="true" stored="false" multiValued="true"/>
+
+    <dynamicField name="*_i" type="int" indexed="true" stored="true"/>
+    <dynamicField name="random_*" type="random"/>
+    <!-- 唯一标识 -->
+    <uniqueKey>id</uniqueKey>
+    <!-- 多值字段 -->
+    <copyField source="name" dest="all"/>
+    <copyField source="description" dest="all"/>
+    <!-- solr自带中文分词类型 -->
+    <fieldType name="text_cn" class="solr.TextField" positionIncrementGap="0">
+        <analyzer type="index">
+            <tokenizer class="org.apache.lucene.analysis.cn.smart.HMMChineseTokenizerFactory"/>
+        </analyzer>
+        <analyzer type="query">
+            <tokenizer class="org.apache.lucene.analysis.cn.smart.HMMChineseTokenizerFactory"/>
+        </analyzer>
+    </fieldType>
+
+    <fieldType name="string" class="solr.StrField" sortMissingLast="true"/>
+    <fieldType name="int" class="solr.TrieIntField" precisionStep="0" positionIncrementGap="0"/>
+    <fieldType name="float" class="solr.TrieFloatField" precisionStep="0" positionIncrementGap="0"/>
+    <fieldType name="long" class="solr.TrieLongField" precisionStep="0" positionIncrementGap="0"/>
+    <fieldType name="double" class="solr.TrieDoubleField" precisionStep="0" positionIncrementGap="0"/>
+    <fieldType name="tdate" class="solr.TrieDateField" precisionStep="6" positionIncrementGap="0"/>
+    <fieldType name="random" class="solr.RandomSortField" indexed="true"/>
+    <fieldType name="point" class="solr.PointType" dimension="2" subFieldSuffix="_d"/>
+    <!-- A specialized field for geospatial search. If indexed, this fieldType must not be multivalued. -->
+    <fieldType name="location" class="solr.LatLonType" subFieldSuffix="_coordinate"/>
+    <!-- An alternative geospatial field type new to Solr 4.  It supports multiValued and polygon shapes.
+      For more information about this and other Spatial fields new to Solr 4, see:
+      http://wiki.apache.org/solr/SolrAdaptersForLuceneSpatial4
+    -->
+    <fieldType name="location_rpt" class="solr.SpatialRecursivePrefixTreeFieldType"
+               geo="true" distErrPct="0.025" maxDistErr="0.001" distanceUnits="kilometers"/>
+    <fieldType name="currency" class="solr.CurrencyField" precisionStep="8" defaultCurrency="USD" currencyConfig="currency.xml"/>
+</schema>
+```
+
+### SolrJ
+
+```java
+public class SolrJTest {
+    private HttpSolrClient httpSolrClient;
+    @Before
+    public void before() {
+        String url = "http://localhost:8081/dbcore";
+        HttpSolrClient.Builder builder = new HttpSolrClient.Builder(url);
+        httpSolrClient = builder.build();
+    }
+    @Test
+    public void deleteDocument() throws Exception{
+        httpSolrClient.deleteByQuery("id:*");
+        httpSolrClient.commit();
+    }
+    @Test
+    public void addDocument() throws Exception{
+        SolrInputDocument document = new SolrInputDocument();
+        document.addField("id", "1");
+        document.addField("name", "bob");
+        document.addField("description", "搜索引擎（Search Engine）");
+        httpSolrClient.add(document);
+        httpSolrClient.commit();
+    }
+    @Test
+    public void query() throws Exception{
+        SolrQuery solrParams = new SolrQuery();
+        solrParams.set("q","*是*");
+        solrParams.set("df","all");//默认字段
+        // solrParams.set("q","description:*是*");
+        QueryResponse queryResponse = httpSolrClient.query(solrParams);
+        List<MyBean> beans = queryResponse.getBeans(MyBean.class);
+        for (MyBean bean : beans) {
+            System.out.println(bean);
+        }
+
+    }
+    @After
+    public void after() throws IOException {
+        httpSolrClient.close();
+    }
+}
+
+```
 
 ------
 

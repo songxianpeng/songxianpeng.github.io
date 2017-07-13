@@ -459,9 +459,13 @@ FilterAEnd
 #### 四种拦截方式
 
 * 请求 REQUEST 默认
+    - 直接访问目标资源时执行过滤器。包括：在地址栏中直接访问、表单提交、超链接、重定向，只要在地址栏中可以看到目标资源的路径，就是REQUEST
 * 转发 FORWARD
+    - 转发访问执行过滤器。包括RequestDispatcher#forward()方法，`<jsp:forward>`标签都是转发访问
 * 包含 INCLUDE
+    - 包含访问执行过滤器。包括RequestDispatcher#include()方法，`<jsp:include>`标签都是包含访问
 * 错误 ERROR
+    - 当目标资源在web.xml中配置为`<error-page>`中时，并且真的出现了异常，转发到目标资源时，会执行过滤器
 
 ### 过滤器的使用场景
 

@@ -570,6 +570,13 @@ public class JsonController {
         return item;
     }
 }
+// 空值转化
+@JsonSerialize(include=JsonSerialize.Inclusion.NON_NULL)
+class Item{
+    String id;
+    String orderDetailId;
+    //...
+}
 ```
 
 ```js
