@@ -529,6 +529,47 @@ public class MyCustomFilter extends Filter {
 
 #### 评分
 
+##### 内置评分
+
+![score](/static/img/Lucene/score.jpg "score")
+
+> d:doc,t:term,q:query,f:field
+
+* 协调因子coord(q,d)：查询字段的命中个数
+    - 查询名称和作者，名称命中，为1/2
+* 查询规范因子queryNorm(q)：与q.getBoost()和t.getBoost()有关，比较两次查询，单次查询对排序无影响
+* 文档词频因子tf(t in d)：词在文档中出现的次数开方
+    - 查询名称，出现两次，为1.414
+* 文档出现频率因子idf(t)：log(总文档数/(命中文档数+1))+1
+* 查询权重t.getBoost()：termquery的boost值，默认1.0
+* 标准化因子norm(t,d)：(1/分词个数的开方)*各个field的boost
+
+
+> tf(t in d) 表示某个term的出现频率，定义了term t出现在当前document d的次数。 对于query中的term，出现的越多，得分就越高。  
+> idf(t) 表示反向文档频率。这个参数表示docFreq(term t一共在多少个文档中出现)的反向影响值。它意味着在越少文档中出现的terms贡献的分数越高(物以稀为贵)。  
+> coord(q,d) 是一个基于在该文档中出现了多少个query中的terms的得分因素。越多的查询项在一个文档中，说明些文档的匹配程度越高。默认是出现查询项的百分比。  
+> queryNorm(q) 是一个标准化参数，使不同查询之间可以比较。此因子不影响文档的排序，因为所有有文档都会使用此因子。  
+> t.getBoost() 是一个term 在query 中的搜索时间中的加权， 它在query中指定, 或者被应用程序直接调用setBoost()设置。  
+> norm（t,d）是在索引时进行计算并存储的，在查询时是无法再改变的，除非再重建索引。norm值是被压缩存储的，在查询时取出该值进行文档相关度计算。
+
+###### 可改变部分
+
+* Api
+    - 索引时刻：field boost
+    - 查询时刻：query boost
+* 重写源码
+    - Similarity
+
+**查看评分详情**
+
+```java
+indexSearcher.explain(query, scoreDoc.doc)
+
+// 1.0 = (MATCH) ConstantScore(name:*c*), product of:
+//   1.0 = boost
+//   1.0 = queryNorm
+```
+
 ##### 自定义评分
 
 ###### 拆分文档分数
@@ -1014,6 +1055,36 @@ managed-schema
 </schema>
 ```
 
+### DIH
+
+dataimporthandler
+
+solrconfig.xml
+
+```xml
+<requestHandler name="/dataimport" class="solr.DataImportHandler">
+    <lst name="defaults">
+        <str name="config">db-data-config.xml</str>
+    </lst>
+</requestHandler>
+```
+
+db-data-config.xml
+
+```xml
+<dataConfig>
+    <dataSource driver="com.mysql.jdbc.Driver" url="jdbc:mysql://192.168.94.130:3306/mydb" user="username" password="password"/>
+    <document>
+        <entity name="item" query="select * from book"
+                deltaQuery="select id from item where last_modified > '${dataimporter.last_index_time}'">
+            <field column="id" name="id"/>
+            <field column="name" name="name"/>
+            <field column="description" name="description"/>
+        </entity>
+    </document>
+</dataConfig>
+```
+
 ### SolrJ
 
 ```java
@@ -1042,12 +1113,29 @@ public class SolrJTest {
     @Test
     public void query() throws Exception{
         SolrQuery solrParams = new SolrQuery();
+        // 查询条件
         solrParams.set("q","*是*");
         solrParams.set("df","all");//默认字段
         // solrParams.set("q","description:*是*");
+        // 分页
+        solrParams.setStart(3);// 起始行数
+        solrParams.setRows(3);// 查询条数
+        // 高亮
+        solrParams.addHighlightField("description");
+        solrParams.setHighlight(true);
+        solrParams.setHighlightSnippets(1);
+        solrParams.setHighlightSimplePre("<b>");
+        solrParams.setHighlightSimplePost("</b>");
+
         QueryResponse queryResponse = httpSolrClient.query(solrParams);
+        System.out.println(queryResponse.getResults().getNumFound());// 查询到的总结果数
         List<MyBean> beans = queryResponse.getBeans(MyBean.class);
         for (MyBean bean : beans) {
+            // 获取高亮字段
+            List<String> description = queryResponse.getHighlighting().get(bean.getId()).get("description");
+            if (description.size() > 0) {
+                bean.setDescription(description.get(0));
+            }
             System.out.println(bean);
         }
 
@@ -1058,7 +1146,84 @@ public class SolrJTest {
     }
 }
 
+// 使用注解和实体类
+public class MyBean {
+    public MyBean(String id, String name, String description) {
+        this.id = id;
+        this.name = name;
+        this.description = description;
+    }
+    @Field
+    private String id;
+    @Field
+    private String name;
+    @Field
+    private String description;
+    // geter seter...
+}
+
+List<MyBean> myBeans = new ArrayList<MyBean>();
+myBeans.add(new MyBean("1", "smith", "大叫好我是smith"));
+myBeans.add(new MyBean("2", "bob", "大叫好我是bob"));
+myBeans.add(new MyBean("3", "tom", "大叫好我是tom"));
+try {
+    httpSolrClient.addBeans(myBeans);
+    httpSolrClient.commit();
+} catch (SolrServerException e) {
+    e.printStackTrace();
+} catch (IOException e) {
+    e.printStackTrace();
+}
 ```
+
+### 应用
+
+#### 搜索
+
+```
+q=price:[10 TO 60] AND iPhone
+```
+
+#### 权重
+
+```
+defType=edismax
+qf=prod_name^1.0+sale_tag^5.0+summary^0.5
+```
+
+#### facet分面
+
+**分面字段**
+
+```
+facet.field=brand_id
+```
+
+分面统计和fq协同
+
+```
+fq={!tag=property_1}property_id:1
+// 通过tag控制是否统计fq过滤的信息
+facet.field={!ex=property_1}property_id
+```
+
+**价格区间**
+
+```
+facet.range=price&f.price.facet.range.start=0.0&f.price.facet.range.end=1000.0&f.price.facet.range.gap=100&f.price.facet.sort=index
+```
+
+**所属类目树统计**
+
+```
+facet.pivot=...id
+```
+
+### Solr优化
+
+* 索引文件的总体大小
+* 记录条数
+* 倒排链条的长短
 
 ------
 
