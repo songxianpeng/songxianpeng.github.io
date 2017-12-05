@@ -300,7 +300,7 @@ dd {
 }
 
 tt, code {
-    font-family: "Source Code Pro","DejaVu Sans Mono",Consolas, "Liberation Mono", Menlo, Courier,"Microsoft Yahei UI",微软雅黑 !important;
+    font-family: "DejaVu Sans Mono","Source Code Pro",Consolas, "Liberation Mono", Menlo, Courier,"Microsoft Yahei UI",微软雅黑 !important;
     font-size: 12px;
     -moz-tab-size: 4;
     -o-tab-size: 4;
@@ -311,7 +311,7 @@ pre {
     margin-top: 0;
     margin-bottom: 0;
     
-    font: 12px "Source Code Pro","DejaVu Sans Mono",Consolas, "Liberation Mono", Menlo, Courier,"Microsoft Yahei UI",微软雅黑;
+    font: 12px "DejaVu Sans Mono","Source Code Pro",Consolas, "Liberation Mono", Menlo, Courier,"Microsoft Yahei UI",微软雅黑;
 }
 
 .container {
