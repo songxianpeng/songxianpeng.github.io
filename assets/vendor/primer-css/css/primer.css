@@ -301,7 +301,7 @@ dd {
 
 tt, code {
     font-family: "Source Code Pro","DejaVu Sans Mono",Consolas, "Liberation Mono", Menlo, Courier,"Microsoft Yahei UI",微软雅黑 !important;
-    font-size: 12px;
+    font-size: 14px !important;
     -moz-tab-size: 4;
     -o-tab-size: 4;
     tab-size: 4;
