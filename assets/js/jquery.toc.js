@@ -144,12 +144,14 @@ $(document).ready(function(){
       $('#post-directory-module').css({
         top: '0',
         position: 'fixed',
-        width: 'inherit'
+        width: 'inherit',
+        z-index:2
       });
     } else {
       $('#post-directory-module').css({
         position: 'inherit',
-        width: 'inherit'
+        width: 'inherit',
+        z-index:2
       });
     }
 
