@@ -145,13 +145,13 @@ $(document).ready(function(){
         top: '0',
         position: 'fixed',
         width: 'inherit',
-        z-index:'2'
+        zIndex:'2'
       });
     } else {
       $('#post-directory-module').css({
         position: 'inherit',
         width: 'inherit',
-        z-index:'2'
+        zIndex:'2'
       });
     }
 
