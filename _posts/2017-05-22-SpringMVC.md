@@ -656,7 +656,7 @@ Java校验API定义了多个注解，这些注解可以放到属性上，从而�
 
 Java校验API所提供的校验注解：
 
-|   注　　解   |                                描　　述                                |
+|   注解   |                                描述                                |
 |--------------|------------------------------------------------------------------------|
 | @AssertFalse | 所注解的元素必须是Boolean类型，并且值为false                           |
 | @AssertTrue  | 所注解的元素必须是Boolean类型，并且值为true                            |
@@ -1008,11 +1008,42 @@ function res() {
 
 ##### RESTful支持
 
+###### REST的基础知识
+
+REST与RPC几乎没有任何关系。RPC是面向服务的，并关注于行为和动作；而REST是面向资源的，强调描述应用程序的事物和名词。
+
+* 表述性（Representational）：REST资源实际上可以用各种形式来进行表述，包括XML、JSON（JavaScript Object Notation）甚至HTML——最适合资源使用者的任意形式
+* 状态（State）：当使用REST的时候，我们更关注资源的状态而不是对资源采取的行为
+* 转移（Transfer）：REST涉及到转移资源数据，它以某种表述性形式从一个应用转移到另一个应用
+
 RESTful（Representational State Transfer表现层状态转化）是一种对URL和http请求的规范，我们用的较多的时对url的规范
 
 * 每一个URI代表一种资源
 * 客户端和服务器之间，传递这种资源的某种表现层
 * 客户端通过四个HTTP动词，对服务器端资源进行操作，实现"表现层状态转化"
+
+REST就是将资源的状态以最适合客户端或服务端的形式从服务器端转移到客户端（或者反过来）。
+
+REST中会有行为，它们是通过HTTP方法来定义的。具体来讲，也就是GET、POST、PUT、DELETE、PATCH以及其他的HTTP方法构成了REST中的动作。这些HTTP方法通常会匹配为如下的CRUD动作：
+
+* Create：POST
+* Read：GET
+* Update：PUT或PATCH
+* Delete：DELETE
+
+尽管通常来讲，HTTP方法会映射为CRUD动作，但这并不是严格的限制。有时候，PUT可以用来创建新资源，POST可以用来更新资源。实际上，POST请求非幂等性（non-idempotent）的特点使其成为一个非常灵活的方法，对于无法适应其他HTTP方法语义的操作，它都能够胜任。
+
+###### Spring支持的REST
+
+4.0版本中，Spring支持以下方式来创建REST资源：
+
+* 控制器可以处理所有的HTTP方法，包含四个主要的REST方法：GET、PUT、DELETE以及POST。Spring 3.2及以上版本还支持PATCH方法；
+* 借助@PathVariable注解，控制器能够处理参数化的URL（将变量输入作为URL的一部分）；
+* 借助Spring的视图和视图解析器，资源能够以多种方式进行表述，包括将模型数据渲染为XML、JSON、Atom以及RSS的View实现；
+* 可以使用ContentNegotiatingViewResolver来选择最适合客户端的表述；
+* 借助@ResponseBody注解和各种HttpMethodConverter实现，能够替换基于视图的渲染方式；
+* 类似地，@RequestBody注解以及HttpMethodConverter实现可以将传入的HTTP数据转化为传入控制器处理方法的Java对象；
+* 借助RestTemplate，Spring应用能够方便地使用REST资源。
 
 ```xml
 <!-- web.xml中增加对RESTful支持的拦截 -->
@@ -1046,6 +1077,406 @@ public class ItemVO {
     Items items;
     Integer id;
     // get set...
+}
+```
+
+Spring提供了两种方法将资源的Java表述形式转换为发送给客户端的表述形式：
+
+* 内容协商（Content negotiation）：选择一个视图，它能够将模型渲染为呈现给客户端的表述形式；
+* 消息转换器（Message conversion）：通过一个消息转换器将控制器所返回的对象转换为呈现给客户端的表述形式。
+
+**协商资源表述**
+
+Spring的ContentNegotiatingViewResolver是一个特殊的视图解析器，它考虑到了客户端所需要的内容类型。按照其最简单的形式，ContentNegotiatingViewResolver可以按照下述形式进行配置：
+
+```java
+@Bean
+public ViewResolver viewResolver() {
+    return new ContentNegotiatingViewResolver();
+}
+```
+
+要理解ContentNegotiating-ViewResolver是如何工作的，这涉及内容协商的两个步骤：
+
+1. 确定请求的媒体类型
+2. 找到适合请求媒体类型的最佳视图
+
+**确定请求的媒体类型**
+
+ContentNegotiatingViewResolver将会考虑到Accept头部信息并使用它所请求的媒体类型，但是它会首先查看URL的文件扩展名。如果URL在结尾处有文件扩展名的话，ContentNegotiatingViewResolver将会基于该扩展名确定所需的类型。如果扩展名是“.json”的话，那么所需的内容类型必须是“application/json”。如果扩展名是“.xml”，那么客户端请求的就是“application/xml”。当然，“.html”扩展名表明客户端所需的资源表述为HTML（text/html）。
+
+如果根据文件扩展名不能得到任何媒体类型的话，那就会考虑请求中的Accept头部信息。在这种情况下，Accept头部信息中的值就表明了客户端想要的MIME类型，没有必要再去查找了。
+
+最后，如果没有Accept头部信息，并且扩展名也无法提供帮助的话，ContentNegotiatingViewResolver将会使用“/”作为默认的内容类型，这就意味着客户端必须要接收服务器发送的任何形式的表述。
+
+一旦内容类型确定之后，ContentNegotiatingViewResolver就该将逻辑视图名解析为渲染模型的View。与Spring的其他视图解析器不同，ContentNegotiatingViewResolver本身不会解析视图。而是委托给其他的视图解析器，让它们来解析视图。
+
+ContentNegotiatingViewResolver要求其他的视图解析器将逻辑视图名解析为视图。解析得到的每个视图都会放到一个列表中。这个列表装配完成后，ContentNegotiatingViewResolver会循环客户端请求的所有媒体类型，在候选的视图中查找能够产生对应内容类型的视图。第一个匹配的视图会用来渲染模型。
+
+**影响媒体类型的选择**
+
+在上述的选择过程中，我们阐述了确定所请求媒体类型的默认策略。但是通过为其设置一个ContentNegotiationManager，我们能够改变它的行为。借助Content-NegotiationManager我们所能做到的事情如下所示：
+
+* 指定默认的内容类型，如果根据请求无法得到内容类型的话，将会使用默认值
+* 通过请求参数指定内容类型
+* 忽视请求的Accept头部信息
+* 将请求的扩展名映射为特定的媒体类型
+* 将JAF（Java Activation Framework）作为根据扩展名查找媒体类型的备用方案
+
+有三种配置ContentNegotiationManager的方法：
+
+* 直接声明一个ContentNegotiationManager类型的bean
+* 通过ContentNegotiationManagerFactoryBean间接创建bean
+* 重载WebMvcConfigurerAdapter的configureContentNegotiation()方法
+
+直接创建ContentNegotiationManager有一些复杂，除非有充分的原因，否则我们不会愿意这样做。后两种方案能够让创建ContentNegotiationManager更加简单。
+
+```xml
+<bean id="contentNegotiationManager" class="org.springframework.web.accept.ContentNegotiationManagerFactoryBean" p:defaultContentType="application/json"/>
+```
+
+```java
+
+@Configuration
+@EnableWebMvc
+@ComponentScan("spittr.web")
+public class WebConfig extends WebMvcConfigurerAdapter {
+    @Bean
+    public ViewResolver viewResolver() {
+        InternalResourceViewResolver resolver = new InternalResourceViewResolver();
+        resolver.setPrefix("/WEB-INF/views/");
+        resolver.setSuffix(".jsp");
+        return resolver;
+    }
+    @Override
+    public void configureDefaultServletHandling(DefaultServletHandlerConfigurer configurer) {
+        configurer.enable();
+    }
+    /*
+     * Configures content-negotiation.
+     */
+    @Configuration
+    public static class ContentNegotiationConfig extends WebMvcConfigurerAdapter {
+        @Bean
+        public ViewResolver cnViewResolver(ContentNegotiationManager contentNegotiationManager) {
+            ContentNegotiatingViewResolver contentNegotiatingViewResolver = new ContentNegotiatingViewResolver();
+            contentNegotiatingViewResolver.setContentNegotiationManager(contentNegotiationManager);
+            return contentNegotiatingViewResolver;
+        }
+        @Override
+        public void configureContentNegotiation(ContentNegotiationConfigurer configurer) {
+            configurer.defaultContentType(MediaType.TEXT_HTML);
+        }
+        @Bean
+        public ViewResolver beanNameViewResolver() {
+            return new BeanNameViewResolver();
+        }
+        @Bean
+        public View spittles() {
+            return new MappingJackson2JsonView();
+        }
+    }
+}
+```
+
+能够处理HTML的视图解析器（如InternalResourceViewResolver或TilesViewResolver）。在大多数场景下，ContentNegotiatingViewResolver会假设客户端需要HTML，如ContentNegotiationManager配置所示。但是，如果客户端指定了它想要JSON（通过在请求路径上使用“.json”扩展名或Accept头部信息）的话，那么ContentNegotiatingViewResolver将会查找能够处理JSON视图的视图解析器。
+
+如果逻辑视图的名称为“spittles”，那么我们所配置的BeanNameViewResolver将会解析spittles()方法中所声明的View。这是因为bean名称匹配逻辑视图的名称。如果没有匹配的View的话，ContentNegotiatingViewResolver将会采用默认的行为，将其输出为HTML。
+
+**ContentNegotiatingViewResolver的优势与限制**
+
+* ContentNegotiatingViewResolver最大的优势在于，它在Spring MVC之上构建了REST资源表述层，控制器代码无需修改。相同的一套控制器方法能够为面向人类的用户产生HTML内容，也能针对不是人类的客户端产生JSON或XML。
+* 如果面向人类用户的接口与面向非人类客户端的接口之间有很多重叠的话，那么内容协商是一种很便利的方案。在实践中，面向人类用户的视图与REST API在细节上很少能够处于相同的级别。如果面向人类用户的接口与面向非人类客户端的接口之间没有太多重叠的话，那么ContentNegotiatingViewResolver的优势就体现不出来了。
+* ContentNegotiatingViewResolver还有一个严重的限制。作为ViewResolver的实现，它只能决定资源该如何渲染到客户端，并没有涉及到客户端要发送什么样的表述给控制器使用。如果客户端发送JSON或XML的话，那么ContentNegotiatingViewResolver就无法提供帮助了。
+* 另外一个小问题是Model是Map结构，所以返回的Json中必须带有key
+
+**HTTP信息转换器**
+
+消息转换（message conversion）提供了一种更为直接的方式，它能够将控制器产生的数据转换为服务于客户端的表述形式。当使用消息转换功能时，DispatcherServlet不再需要那么麻烦地将模型数据传送到视图中。实际上，这里根本就没有模型，也没有视图，只有控制器产生的数据，以及消息转换器（message converter）转换数据之后所产生的资源表述。
+
+Spring提供了多个HTTP信息转换器，用于实现资源表述与各种Java类型之间的互相转换：
+
+|              信息转换器              |                                                                                                          描述                                                                                                         |
+|--------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| AtomFeedHttpMessageConverter         | Rome Feed对象和Atom feed（媒体类型application/atom+xml）之间的互相转换。</br>如果 Rome 包在类路径下将会进行注册                                                                                                           |
+| BufferedImageHttpMessageConverter    | BufferedImages与图片二进制数据之间互相转换                                                                                                                                                                            |
+| ByteArrayHttpMessageConverter        | 读取/写入字节数组。从所有媒体类型（`*/*`）中读取，并以application/octet-stream格式写入                                                                                                                                  |
+| FormHttpMessageConverter             | 将application/x-www-form-urlencoded内容读入到`MultiValueMap<String,String>`中，也会将`MultiValueMap<String,String>`写入到application/x-www-form-urlencoded中或将`MultiValueMap<String, Object>`写入到multipart/form-data中 |
+| Jaxb2RootElementHttpMessageConverter | 在XML（text/xml或application/xml）和使用JAXB2注解的对象间互相读取和写入。</br>如果 JAXB v2 库在类路径下，将进行注册                                                                                                        |
+| MappingJacksonHttpMessageConverter   | 在JSON和类型化的对象或非类型化的HashMap间互相读取和写入。 </br>如果 Jackson JSON 库在类路径下，将进行注册                                                                                                                  |
+| MappingJackson2HttpMessageConverter  | 在JSON和类型化的对象或非类型化的HashMap间互相读取和写入。</br>如果 Jackson 2 JSON 库在类路径下，将进行注册                                                                                                                 |
+| MarshallingHttpMessageConverter      | 使用注入的编排器和解排器（marshaller和unmarshaller）来读入和写入XML。支持的编排器和解排器包括Castor、JAXB2、JIBX、XMLBeans以及Xstream                                                                                 |
+| ResourceHttpMessageConverter         | 读取或写入Resource                                                                                                                                                                                                    |
+| RssChannelHttpMessageConverter       | 在RSS feed和Rome Channel对象间互相读取或写入。</br>如果 Rome 库在类路径下，将进行注册                                                                                                                                      |
+| SourceHttpMessageConverter           | 在XML和javax.xml.transform.Source对象间互相读取和写入。</br>默认注册                                                                                                                                                       |
+| StringHttpMessageConverter           | 将所有媒体类型（`*/*`）读取为String。将String写入为text/plain                                                                                                                                                           |
+| XmlAwareFormHttpMessageConverter     | FormHttpMessageConverter的扩展，使用SourceHttp MessageConverter来支持基于XML的部分                                                                                                                                    |
+
+**在响应体中返回资源状态**
+
+正常情况下，当处理方法返回Java对象（除String外或View的实现以外）时，这个对象会放在模型中并在视图中渲染使用。
+但是，如果使用了消息转换功能的话，我们需要告诉Spring跳过正常的模型/视图流程，并使用消息转换器。
+有不少方式都能做到这一点，但是最简单的方法是为控制器方法添加@ResponseBody注解。
+
+```java
+@RequestMapping(value = "/{id}", method = RequestMethod.GET, produces = "application/json")
+public @ResponseBody Spittle spittleById(@PathVariable Long id) {
+    return spittleRepository.findOne(id);
+}
+```
+
+@ResponseBody注解会告知Spring，我们要将返回的对象作为资源发送给客户端，并将其转换为客户端可接受的表述形式。更具体地讲，DispatcherServlet将会考虑到请求中Accept头部信息，并查找能够为客户端提供所需表述形式的消息转换器。
+
+谈及Accept头部信息，请注意getSpitter()的@RequestMapping注解。在这里，我使用了produces属性表明这个方法只处理预期输出为JSON的请求。也就是说，这个方法只会处理Accept头部信息包含“application/json”的请求。其他任何类型的请求，即使它的URL匹配指定的路径并且是GET请求也不会被这个方法处理。这样的请求会被其他的方法来进行处理（如果存在适当方法的话），或者返回客户端HTTP 406（Not Acceptable）响应。
+
+**在请求体中接收资源状态**
+
+@RequestBody能告诉Spring查找一个消息转换器，将来自客户端的资源表述转换为对象。
+
+```java
+@RequestMapping(method = RequestMethod.POST, consumes = "application/json")
+public Spittle saveSpittle(@RequestBody Spittle spittle) {
+    return spittleRepository.save(spittle);
+}
+```
+
+@RequestMapping有一个consumes属性，我们将其设置为“application/json”。consumes属性的工作方式类似于produces，不过它会关注请求的Content-Type头部信息。它会告诉Spring这个方法只会处理对“/spittles”的POST请求，并且要求请求的Content-Type头部信息为“application/json”。如果无法满足这些条件的话，会由其他方法（如果存在合适的方法的话）来处理请求。
+
+**为控制器默认设置消息转换**
+
+Spring 4.0引入了@RestController注解，能够在这个方面给我们提供帮助。如果在控制器类上使用@RestController来代替@Controller的话，Spring将会为该控制器的所有处理方法应用消息转换功能。我们不必为每个方法都添加@ResponseBody了。
+
+```java
+@RestController
+@RequestMapping("/spittles")
+public class SpittleApiController {
+}
+```
+
+为控制器使用了@RestController，所以它的方法所返回的对象将会通过消息转换机制，产生客户端所需的资源表述。
+
+**发送错误信息到客户端**
+
+Spring提供了多种方式来处理这样的场景：
+
+* 使用@ResponseStatus注解可以指定状态码
+* 控制器方法可以返回ResponseEntity对象，该对象能够包含更多响应相关的元数据
+* 异常处理器能够应对错误场景，这样处理器方法就能关注于正常的状况
+
+**使用ResponseEntity**
+
+作为@ResponseBody的替代方案，控制器方法可以返回一个ResponseEntity对象。ResponseEntity中可以包含响应相关的元数据（如头部信息和状态码）以及要转换成资源表述的对象。
+
+```java
+@RequestMapping(value = "/{id}", method = RequestMethod.GET, produces = "application/json")
+public ResponseEntity<Spittle> spittleById(@PathVariable Long id) {
+    Spittle spittle = spittleRepository.findOne(id);
+    HttpStatus httpStatus = spittle == null ? HttpStatus.NOT_FOUND : HttpStatus.OK;
+    return new ResponseEntity<>(spittle, httpStatus);
+}
+```
+
+除了包含响应头信息、状态码以及负载以外，ResponseEntity还包含了@ResponseBody的语义，如果返回ResponseEntity的话，那就没有必要在方法上使用@ResponseBody注解了。
+
+```java
+public @ResponseBody Error spittleNotFound(SpittleNotFoundException e) {
+    long spittleId = e.getSpittleId();
+    return new Error(4, "Spittle [" + spittleId + "] not found");
+}
+```
+
+```java
+@RequestMapping(value = "/{id}", method = RequestMethod.GET, produces = "application/json")
+public ResponseEntity<?> spittleById(@PathVariable Long id) {
+    Spittle spittle = spittleRepository.findOne(id);
+    if (spittle == null) {
+        Error error = new Error(4, "Spittle [" + id + "] not found");
+        return new ResponseEntity<>(error, HttpStatus.NOT_FOUND);
+    }
+    return new ResponseEntity<>(spittle, HttpStatus.OK);
+}
+```
+
+**处理错误**
+
+参考《HandlerExceptionResolver异常处理》
+
+```java
+public class SpittleNotFoundException extends RuntimeException {
+    private static final long serialVersionUID = 1L;
+    private long spittleId;
+    public SpittleNotFoundException(long spittleId) {
+        this.spittleId = spittleId;
+    }
+    public long getSpittleId() {
+        return spittleId;
+    }
+}
+```
+
+```java
+@ExceptionHandler(SpittleNotFoundException.class)
+@ResponseStatus(HttpStatus.NOT_FOUND)
+public Error spittleNotFound(SpittleNotFoundException e) {
+    long spittleId = e.getSpittleId();
+    return new Error(4, "Spittle [" + spittleId + "] not found");
+}
+```
+
+```java
+@RequestMapping(value = "/{id}", method = RequestMethod.GET, produces = "application/json")
+public Spittle spittleById(@PathVariable Long id) {
+    Spittle spittle = spittleRepository.findOne(id);
+    if (spittle == null) {
+        throw new SpittleNotFoundException(id);
+    }
+    return spittle;
+}
+```
+
+这个版本的spittleById()方法确实干净了很多。除了对返回值进行null检查，它完全关注于成功的场景，也就是能够找到请求的Spittle。同时，在返回类型中，我们能移除掉奇怪的泛型了。
+
+不过，我们能够让代码更加干净一些。现在我们已经知道spittleById()将会返回Spittle并且HTTP状态码始终会是200（OK），那么就可以不再使用ResponseEntity，而是将其替换为@ResponseBody，如果控制器类上使用了@RestController，我们甚至不再需要@ResponseBody
+
+通过为异常处理方法添加@ResponseStatus(HttpStatus.NOT_FOUND)注解，我们可以达到相同的效果，而且可以不再使用ResponseEntity了。
+
+**在响应中设置头部信息**
+
+```java
+@RequestMapping(method = RequestMethod.POST, consumes = "application/json")
+@ResponseStatus(HttpStatus.CREATED)// 请求头201显示已创建
+public ResponseEntity<Spittle> saveSpittle(@RequestBody Spittle spittle, UriComponentsBuilder ucb) {
+    Spittle saved = spittleRepository.save(spittle);
+    // 用于返回已创建的资源地址
+    HttpHeaders headers = new HttpHeaders();
+    URI locationUri = ucb.path("/spittles/")
+            .path(String.valueOf(saved.getId()))
+            .build()
+            .toUri();
+    headers.setLocation(locationUri);
+    return new ResponseEntity<Spittle>(saved, headers, HttpStatus.CREATED);
+}
+```
+
+**RestTemplate**
+
+除了TRACE以外，RestTemplate涵盖了所有的HTTP动作。
+
+大多数操作都以三种方法的形式进行了重载：
+
+* 一个使用java.net.URI作为URL格式，不支持参数化URL
+* 一个使用String作为URL格式，并使用Map指明URL参数
+* 一个使用String作为URL格式，并使用可变参数列表指明URL参数
+
+|        方法       |                                           描述                                          |
+|-------------------|-----------------------------------------------------------------------------------------|
+| delete()          | 在特定的URL上对资源执行HTTP DELETE操作                                                  |
+| exchange()        | 在URL上执行特定的HTTP方法，返回包含对象的ResponseEntity，这个对象是从响应体中映射得到的 |
+| execute()         | 在URL上执行特定的HTTP方法，返回一个从响应体映射得到的对象                               |
+| getForEntity()    | 发送一个HTTP GET请求，返回的ResponseEntity包含了响应体所映射成的对象                    |
+| getForObject()    | 发送一个HTTP GET请求，返回的请求体将映射为一个对象                                      |
+| headForHeaders()  | 发送HTTP HEAD请求，返回包含特定资源URL的HTTP头                                          |
+| optionsForAllow() | 发送HTTP OPTIONS请求，返回对特定URL的Allow头信息                                        |
+| postForEntity()   | POST数据到一个URL，返回包含一个对象的ResponseEntity，这个对象是从响应体中映射得到的     |
+| postForLocation() | POST数据到一个URL，返回新创建资源的URL                                                  |
+| postForObject()   | POST数据到一个URL，返回根据响应体匹配形成的对象                                         |
+| put()             | PUT资源到特定的URL                                                                      |
+
+GET
+
+```java
+public Spittle getSpittle(String id) {
+    Map<String, String> urlVariables = new HashMap<>();
+    urlVariables.put("id", id);
+    RestTemplate restTemplate = new RestTemplate();
+    return restTemplate.getForObject("http://localhost/spittle/{id}", Spittle.class, urlVariables);
+}
+public Spittle[] getSpittles(String id) {
+    Map<String, String> urlVariables = new HashMap<>();
+    urlVariables.put("id", id);
+    RestTemplate restTemplate = new RestTemplate();
+    return restTemplate.getForObject("http://localhost/spittle/{id}", Spittle[].class, urlVariables);
+}
+```
+
+```java
+public Spittle getSpittle(String id) {
+    Map<String, String> urlVariables = new HashMap<>();
+    urlVariables.put("id", id);
+    RestTemplate restTemplate = new RestTemplate();
+    ResponseEntity<Spittle> entity = restTemplate.getForEntity("http://localhost/spittle/{id}", Spittle.class, urlVariables);
+    if (entity.getStatusCode() != HttpStatus.NOT_FOUND) {
+        throw new SpittleNotFoundException(id);
+    }
+    return entity.getBody();
+}
+```
+
+PUT
+
+```java
+public void updateSpittle(Spittle spittle) {
+    RestTemplate restTemplate = new RestTemplate();
+    // String url = "http://localhost/spittle/" + spittle.getId();
+    // restTemplate.put(URI.create(url), spittle);
+    restTemplate.put("http://localhost/spittle/{id}", spittle, spittle.getId());
+}
+```
+
+在所有版本的put()中，第二个参数都是表示资源的Java对象，它将按照指定的URI发送到服务器端。
+
+对象将被转换成什么样的内容类型很大程度上取决于传递给put()方法的类型。如果给定一个String值，那么将会使用StringHttpMessageConverter：这个值直接被写到请求体中，内容类型设置为“text/plain”。如果给定一个MultiValueMap<String,String>，那么这个Map中的值将会被FormHttpMessageConverter以“application/x-www-form-urlencoded”的格式写到请求体中。
+
+因为我们传递进来的是Spittle对象，所以需要一个能够处理任意对象的信息转换器。如果在类路径下包含Jackson 2库，那么MappingJacksonHttpMessageConverter将以application/json格式将Spittle写到请求中。
+
+**DELETE**
+
+```java
+public void deleteSpittle(String id) {
+    RestTemplate restTemplate = new RestTemplate();
+    restTemplate.delete("http://localhost/spittle/{id}", id);
+}
+```
+
+**POST**
+
+```java
+public Spittle postSpittleForObject(Spittle spittle) {
+    RestTemplate restTemplate = new RestTemplate();
+    Spittle result = restTemplate.postForObject("http://localhost/spittle/add", spittle, Spittle.class);
+    return result;
+}
+```
+
+```java
+public Spittle postSpittleForObject(Spittle spittle) {
+    RestTemplate restTemplate = new RestTemplate();
+    ResponseEntity<Spittle> spittleResponseEntity = restTemplate.postForEntity("http://localhost/spittle/add", spittle, Spittle.class);
+    if (spittleResponseEntity.getStatusCode() != HttpStatus.CREATED) {
+        throw new SpittleAlreadyExistFoundException(spittle.getId());
+    }
+    URI location = spittleResponseEntity.getHeaders().getLocation();
+    return spittleResponseEntity.getBody();
+}
+```
+
+```java
+public String postSpittleForLocation(Spittle spittle) {
+    RestTemplate restTemplate = new RestTemplate();
+    return restTemplate.postForLocation("http://localhost/spittle/add", spittle).toString();
+}
+```
+
+**通过exchange设置请求头**
+
+```java
+public Spittle exchangeSpittleForJson(String id) {
+    RestTemplate restTemplate = new RestTemplate();
+    MultiValueMap<String, String> multiValueMap = new HttpHeaders();
+    multiValueMap.add(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE);
+    HttpEntity<Object> requestHttpEntity = new HttpEntity<>(multiValueMap);
+    ResponseEntity<Spittle> exchange = restTemplate.exchange("http://localhost/spittle/{id}", HttpMethod.GET, requestHttpEntity, Spittle.class, id);
+    return exchange.getBody();
 }
 ```
 
@@ -1150,7 +1581,7 @@ public interface View {
 
 Spring自带了13个视图解析器，能够将逻辑视图名转换为物理实现：
 
-|           视图解析器           |                                                            描　　述                                                           |
+|           视图解析器           |                                                            描述                                                           |
 |--------------------------------|-------------------------------------------------------------------------------------------------------------------------------|
 | BeanNameViewResolver           | 将视图解析为Spring应用上下文中的bean，其中bean的ID与视图的名字相同                                                            |
 | ContentNegotiatingViewResolver | 通过考虑客户端需要的内容类型来解析视图，委托给另外一个能够产生对应内容类型的视图解析器                                        |
@@ -1200,6 +1631,8 @@ org.springframework.web.servlet.ViewResolver=org.springframework.web.servlet.vie
 ```
 
 ### HandlerExceptionResolver异常处理
+
+参考《REST》部分的异常处理
 
 Spring提供了多种方式将异常转换为响应：
 
@@ -1542,7 +1975,7 @@ subflow-state允许在一个正在执行的流程中调用另一个流程。这�
 
 流程中携带的数据会拥有不同的生命作用域和可见性，这取决于保存数据的变量本身的作用域。
 
-|   范　　围   |                                      生命作用域和可见性                                      |
+|   范围   |                                      生命作用域和可见性                                      |
 |--------------|----------------------------------------------------------------------------------------------|
 | Conversation | 最高层级的流程开始时创建，在最高层级的流程结束时销毁。被最高层级的流程和其所有的子流程所共享 |
 | Flow         | 当流程开始时创建，在流程结束时销毁。只有在创建它的流程中是可见的                             |
@@ -1782,7 +2215,7 @@ protected void configure(AuthenticationManagerBuilder auth) throws Exception {
 
 UserDetailsManagerConfigurer.UserDetailsBuilder对象所有可用的方法：
 
-|                    方　　法                   |          描　　述          |
+|                    方法                   |          描述          |
 |-----------------------------------------------|----------------------------|
 | accountExpired(boolean)                       | 定义账号是否已经过期       |
 | accountLocked(boolean)                        | 定义账号是否已经锁定       |
@@ -1965,7 +2398,7 @@ authorizeRequests()
 
 用来定义如何保护路径的配置方法：
 
-|                 方　　法                |                             能够做什么                              |
+|                 方法                |                             能够做什么                              |
 |-----------------------------------------|---------------------------------------------------------------------|
 | access(String)                          | 如果给定的SpEL表达式计算结果为true，就允许访问                      |
 | anonymous()                             | 允许匿名用户访问                                                    |
@@ -2139,7 +2572,7 @@ http
 
 Spring Security通过JSP标签库在视图层上支持安全性：
 
-|            JSP标签             |                                      作　　用                                      |
+|            JSP标签             |                                      作用                                      |
 |--------------------------------|------------------------------------------------------------------------------------|
 | `<security:accesscontrollist>` | 如果用户通过访问控制列表授予了指定的权限，那么渲染该标签体中的内容                 |
 | `<security:authentication>`    | 渲染当前用户认证对象的详细信息                                                     |
@@ -2186,7 +2619,7 @@ Hello,<security:authentication property="principal.username" var="loginId" scope
 
 Thymeleaf的安全方言提供了与Spring Security标签库相对应的属性：
 
-|      属　　性      |                                                        作　　用                                                       |
+|      属性      |                                                        作用                                                       |
 |--------------------|-----------------------------------------------------------------------------------------------------------------------|
 | sec:authentication | 渲染认证对象的属性。类似于Spring Security的`<sec:authentication/>`JSP标签                                             |
 | sec:authorize      | 基于表达式的计算结果，条件性的渲染内容。类似于Spring Security的`<sec:authorize/>`JSP标签                              |
@@ -2328,7 +2761,7 @@ public void addSpittle(Spittle spittle) {
 
 Spring Security 3.0提供了4个新的注解，可以使用SpEL表达式来保护方法调用：
 
-|    注　　解    |                              描　　述                             |
+|    注解    |                              描述                             |
 |----------------|-------------------------------------------------------------------|
 | @PreAuthorize  | 在方法调用之前，基于表达式的计算结果来限制对方法的访问            |
 | @PostAuthorize | 允许方法调用，但是如果表达式计算结果为false，将抛出一个安全性异常 |
