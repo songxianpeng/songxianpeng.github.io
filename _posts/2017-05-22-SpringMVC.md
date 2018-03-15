@@ -6,8 +6,6 @@ categories: JavaEE
 published: true  
 ---  
 
-[TOC]
-
 SpringMVC是Spring框架的一个模块，无需单独整合，是一个基于MVC的web框架
 
 ## 启动
