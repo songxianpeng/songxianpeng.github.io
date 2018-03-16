@@ -117,7 +117,7 @@ public class RootConfig {
     public static class WebPackage extends RegexPatternTypeFilter {
         public WebPackage() {
             // 排除DispatcherServlet上下文下的bean
-            super(Pattern.compile("com\\.xpress\\.web"));
+            super(Pattern.compile("com\\.xpress\\.web.*|com\.xpress\.config.*"));
         }
     }
 }
