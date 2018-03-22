@@ -258,6 +258,64 @@ public void testSpittle() throws Exception {
 
 ## 框架原理
 
+Spring MVC的实现大致由以下几个步骤完成：
+
+* 需要建立Controller控制器和HTTP请求之间的映射关系
+    - 这个工作是由在handlerMapping中封装的HandlerExecutionChain对象来完成的，而对Controller控制器和HTTP请求的映射关系的配置是在Bean定义中描述，并在IoC容器初始化时，通过初始化HandlerMapping来完成的，这些定义的映射关系会被载入到一个handlerMap中使用。
+* 在初始化过程中，Controller对象和HTTP请求之间的映射关系建立好以后，为Spring MVC接收HTTP请求并完成响应处理做好了准备。
+    - DispatcherServlet会根据具体的URL请求信息，在HandlerMapping中进行查询，从而得到对应的HandlerExecutionChain。在这个HandlerExecutionChain中封装了配置的Controller，这个请求对应的Controller会完成请求的响应动作，生成需要的ModelAndView对象，这个对象就像它的名字所表示的一样，可以从该对象中获得Model模型数据和视图对象。
+* 得到ModelAndView以后，DispatcherServlet把获得的模型数据交给特定的视图对象，从而完成这些数据的视图呈现工作。
+    - 这个视图呈现由视图对象的render方法来完成。
+
+### 上下文在Web容器中的启动
+
+在Web容器中启动Spring应用程序的过程：
+
+![ContextLoaderListener](/static/img/spring-mvc/ContextLoaderListener.png "ContextLoaderListener")
+
+载入IoC容器过程中的3个类之间的关系：
+
+![ContextLoaderListenerHierarchy](/static/img/spring-mvc/ContextLoaderListenerHierarchy.png "ContextLoaderListenerHierarchy")
+
+在ContextLoader中，完成了两个IoC容器建立的基本过程，一个是在Web容器中建立起双亲IoC容器，另一个是生成相应的WebApplicationContext并将其初始化。
+
+WebApplicationContext接口的类继承关系：
+
+![WebApplicationContextHierarchy](/static/img/spring-mvc/WebApplicationContextHierarchy.png "WebApplicationContextHierarchy")
+
+* ContextLoaderListener
+    - contextInitialized()
+        + ContextLoader
+            * initWebApplicationContext()
+                - createWebApplicationContext()
+                    + determineContextClass()
+                - configureAndRefreshWebApplicationContext()
+                    + AbstractApplicationContext
+                        * refresh()
+
+### DispatcherServlet的启动和初始化
+
+作为一个Servlet，DispatcherServlet实现的是Sun的J2EE核心模式中的前端控制器模式（Front Controller），作为一个前端控制器，所有的Web请求都需要通过它来处理，进行转发、匹配、数据处理后，并转由页面进行展现，因此这个DispatcerServlet可以看成是Spring MVC实现中最为核心的部分，它的设计与分析也是下面分析Spring MVC的一条主线。
+
+DispatcherServlet会建立自己的上下文来持有Spring MVC的Bean对象，在建立这个自己持有的IoC容器时，会从ServletContext中得到根上下文作为DispatcherServlet持有上下文的双亲上下文。有了这个根上下文，再对自己持有的上下文进行初始化，最后把自己持有的这个上下文保存到ServletContext中，供以后检索和使用。
+
+对具体的一个Bean定义查找过程来说，如果要查找一个由DispatcherServlet所在的IoC容器来管理的Bean，系统会首先到根上下文中去查找。如果查找不到，才会到DispatcherServlet所管理的IoC容器去进行查找，这是由IoC容器getBean的实现来决定的。
+
+DispacherServlet类的继承关系：
+
+![DispatcherServlet](/static/img/spring-mvc/DispatcherServlet.png "DispatcherServlet")
+
+DispatcherServlet的工作大致可以分为两个部分：
+
+* 一个是初始化部分，由initServletBean()启动，通过initWebApplicationContext()方法最终调用DispatcherServlet的initStrategies方法，在这个方法里，DispatcherServlet对MVC模块的其他部分进行了初始化，比如handlerMapping、ViewResolver等
+* 另一个是对HTTP请求进行响应，作为一个Servlet, Web容器会调用Servlet的doGet()和doPost()方法，在经过FrameworkServlet的processRequest()简单处理后，会调用DispatcherServlet的doService()方法，在这个方法调用中封装了doDispatch()，这个doDispatch()是Dispatcher实现MVC模式的主要部分
+
+DispatcherServlet的处理过程：
+
+![DispatcherServlet-process](/static/img/spring-mvc/DispatcherServlet-process.png "DispatcherServlet-process")
+
+### MVC处理HTTP分发请求
+
 ![flow](/static/img/spring-mvc/flow.png "flow")
 
 1. 发起请求到前端控制器（DispatcherServlet）
@@ -281,6 +339,39 @@ public void testSpittle() throws Exception {
         + render(mv, request, response);
             * view = mv.getView();
             * view.render(mv.getModelInternal(), request, response);
+
+doDispatch协同模型和控制器的过程：
+
+![doDispath](/static/img/spring-mvc/doDispath.png "doDispath")
+
+HandlerMapping的设计原理：
+
+![HandlerMappingHierarchy](/static/img/spring-mvc/HandlerMappingHierarchy.png "HandlerMappingHierarchy")
+
+在HandlerMapping接口中定义了一个getHandler方法，通过这个方法，可以获得与HTTP请求对应的HandlerExecutionChain，HandlerExecutionChain持有一个Interceptor链和一个handler对象，这个handler对象实际上就是HTTP请求对应的Controller，在持有这个handler对象的同时，还在HandlerExecutionChain中设置了一个拦截器链，通过这个拦截器链中的拦截器，可以为handler对象提供功能的增强。
+
+* AbstractHandlerMapping
+    - getHandler()
+        + AbstractUrlHandlerMapping
+            * getHandlerInternal()
+                - lookupHandler()
+        + getHandlerExecutionChain()
+
+注册过程在容器对Bean进行依赖注入时发生，它实际上是通过一个Bean的postProcessor来完成的。SimpleHandlerMapping是ApplicationContextAware的子类才能启动这个注册过程。
+
+* ApplicationObjectSupport
+    - setApplicationContext()
+        + SimpleUrlHandlerMapping
+            * initApplicationContext()
+                - registerHandlers()
+
+Spring MVC的继承关系：
+
+![ViewHierarchy](/static/img/spring-mvc/ViewHierarchy.png "ViewHierarchy")
+
+
+
+## 应用
 
 ### DispatcherServlet前端控制器
 
