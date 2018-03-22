@@ -314,6 +314,26 @@ DispatcherServlet的处理过程：
 
 ![DispatcherServlet-process](/static/img/spring-mvc/DispatcherServlet-process.png "DispatcherServlet-process")
 
+* initStrategies()
+    - initMultipartResolver()
+    - initLocaleResolver()
+    - initThemeResolver()
+    - initHandlerMappings()
+        + getBean触发initializeBean时对ApplicationContextAwareProcessor处理时触发setApplicationContext，调用registerHandlers对Handler进行注册
+    - initHandlerAdapters()
+    - initHandlerExceptionResolvers()
+    - initRequestToViewNameTranslator()
+    - initViewResolvers()
+    - initFlashMapManager()
+
+注册过程在容器对Bean进行依赖注入时发生，它实际上是通过一个Bean的postProcessor来完成的。SimpleHandlerMapping是ApplicationContextAware的子类才能启动这个注册过程。
+
+* ApplicationObjectSupport
+    - setApplicationContext()
+        + SimpleUrlHandlerMapping
+            * initApplicationContext()
+                - registerHandlers()
+
 ### MVC处理HTTP分发请求
 
 ![flow](/static/img/spring-mvc/flow.png "flow")
@@ -357,19 +377,9 @@ HandlerMapping的设计原理：
                 - lookupHandler()
         + getHandlerExecutionChain()
 
-注册过程在容器对Bean进行依赖注入时发生，它实际上是通过一个Bean的postProcessor来完成的。SimpleHandlerMapping是ApplicationContextAware的子类才能启动这个注册过程。
-
-* ApplicationObjectSupport
-    - setApplicationContext()
-        + SimpleUrlHandlerMapping
-            * initApplicationContext()
-                - registerHandlers()
-
-Spring MVC的继承关系：
+View接口设计：
 
 ![ViewHierarchy](/static/img/spring-mvc/ViewHierarchy.png "ViewHierarchy")
-
-
 
 ## 应用
 
