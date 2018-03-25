@@ -2198,6 +2198,30 @@ Spring Security从两个角度来解决安全性问题。
 * 使用Servlet规范中的Filter保护Web请求并限制URL级别的访问。
 * 使用Spring AOP保护方法调用——借助于对象代理和使用通知，能够确保只有具备适当权限的用户才能访问安全保护的方法。
 
+### 原理
+
+应用的安全需求管理主要是通过过滤器、验证器、用户数据提供器、授权器、投票器这几个基本模块协作完成的。
+
+Spring Security设计时序
+
+![authentication-processing-filter](/static/img/spring-mvc/authentication-processing-filter.png "authentication-processing-filter")
+
+Spring Security的Bean配置
+
+![spring-security-bean-relation](/static/img/spring-mvc/spring-security-bean-relation.png "spring-security-bean-relation")
+
+验证数据提供器的设计：
+
+![authentication-provider](/static/img/spring-mvc/authentication-provider.png "authentication-provider")
+
+授权器的类继承关系设计：
+
+![DecisionManager](/static/img/spring-mvc/DecisionManager.png "DecisionManager")
+
+投票器的类继承关系设计：
+
+![DecisionVoter](/static/img/spring-mvc/DecisionVoter.png "DecisionVoter")
+
 ### Spring Security的模块
 
 Spring Security被分成了11个模块
@@ -3007,4 +3031,4 @@ public void deleteSpittleList(List<Spittle> spittleList) {
 
 ------
 
-*以上概念总结于传智播客SpringMVC课程和Spring In Action*
+*以上概念总结于传智播客SpringMVC课程和Spring In Action，Spring技术内幕*
