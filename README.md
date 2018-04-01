@@ -1,6 +1,6 @@
 # Xpress Song
 
-我的个人博客：<http://xpresssong.github.io/>，欢迎 Star 和 Fork。
+我的个人博客：<http://xpresssong.github.io/>，<http://songxp.top/>，欢迎 Star 和 Fork。
 
 ## 概览
 本博客外观基于 [DONGChuan](https://github.com/mzlogin/mzlogin.github.io)  fork，感谢！
