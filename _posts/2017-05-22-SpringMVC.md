@@ -140,7 +140,7 @@ web.xml
     <servlet-class>org.springframework.web.servlet.DispatcherServlet</servlet-class>
     <init-param>
         <!--指定配置文件位置，如果不配置默认加载/WEB-INF/servlet名称-servlet.xml-->
-        <param-name>contextConfigLocation</param-name>
+        <param-name>annotatedClasses</param-name>
         <param-value>classpath:spring-webmvc-servlet.xml</param-value>
     </init-param>
     <init-param>
@@ -2263,7 +2263,7 @@ springSecurityFilterChain本身是另一个特殊的Filter，它也被称为Filt
 </filter-mapping>
 ```
 
-AbstractSecurityWebApplicationInitializer实现了WebApplication-Initializer，因此Spring会发现它，并用它在Web容器中注册DelegatingFilterProxy。
+AbstractSecurityWebApplicationInitializer实现了WebApplicationInitializer，因此Spring会发现它，并用它在Web容器中注册DelegatingFilterProxy。
 
 尽管我们可以重载它的appendFilters()或insertFilters()方法来注册自己选择的Filter，但是要注册DelegatingFilterProxy的话，我们并不需要重载任何方法。
 
