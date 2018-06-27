@@ -4,7 +4,7 @@
 {% if site.disqus_username %}
 {% assign load_disqus = true %}
 <!-- Disqus Protection, see https://github.com/mzlogin/mzlogin.github.io/issues/2 -->
-  {% if site.disqus_username == 'xpressSong' %}
+  {% if site.disqus_username == 'songxianpeng' %}
     {% assign load_disqus = false %}
     {% if site.url contains 'songxp.top' %}
       {% assign load_disqus = true %}
@@ -59,9 +59,9 @@
   var gitalk = new Gitalk({
     clientID: '784df41248d3b0352522',
     clientSecret: '569b3e4285c4f47210e643edcb118df54d3d7e63',
-    repo: 'xpressSong.github.io',
-    owner: 'xpressSong',
-    admin: ['xpressSong'],
+    repo: 'songxianpeng.github.io',
+    owner: 'songxianpeng',
+    admin: ['songxianpeng'],
   })
 
   gitalk.render('gitalk-container')

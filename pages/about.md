@@ -12,7 +12,7 @@ Just do it and grow up.
 
 ## 联系
 
-* GitHub：[@xpressSong](https://github.com/xpressSong)
+* GitHub：[@songxianpeng](https://github.com/songxianpeng)
 * 博客：[{{ site.title }}]({{ site.url }})
 
 ## Skill Keywords

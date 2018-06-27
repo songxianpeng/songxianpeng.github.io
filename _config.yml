@@ -4,24 +4,24 @@
 baseurl:
 url: http://songxp.top
 date_format: "ordinal"
-title: Xpress Song
+title: Songxp
 subtitle: "南飞的驴"
 description: "Grow up"
-keywords: xpress song
+keywords: Songxp
 favicon: /favicon.ico
 timezone: Asia/Shanghai
 encoding: "utf-8"
-source_code: https://github.com/xpressSong/xpressSong.github.io
+source_code: https://github.com/songxianpeng/songxianpeng.github.io
 side_bar_repo_limit: 5
 
 # ---------------- #
 #      Author      #
 # ---------------- #
-author: Xpress Song
+author: Songxp
 organization: I2finance, Inc.
 organization_url: http://www.i2finance.net/
 location: Beijing, China
-email: q13859601@hotmail.com
+email: songxianpeng@hotmail.com
 
 # ---------------- #
 #    Navigation    #
@@ -80,7 +80,7 @@ collections:
 # ---------------- #
 #      Socials     #
 # ---------------- #
-github_username: xpressSong
+github_username: songxianpeng
 douban_username: 
 facebook_username: 
 weibo_username: 
