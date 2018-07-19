@@ -7,7 +7,7 @@ $(function () {
 	$.each($("fieldset"),function(i,o) {
 		$(o).find("li").first().removeClass("border-left");
 	});
-	$(".box").fadeOut(400, function () {
+	$(".box").fadeOut(0, function () {
 		$("#divMain").removeClass("hide");
 	});
 })
