@@ -11,10 +11,6 @@ ul {
 	margin: 10px !important;
 }
 
-.border-left {
-	border-left: #555 solid 1px;
-}
-
 a:hover {
 	text-decoration: none;
 	color: #8a6d3b;
