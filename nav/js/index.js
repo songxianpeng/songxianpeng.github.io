@@ -2,7 +2,6 @@ $(function () {
 	// $("img").addClass("img-responsive");
 	// $("li").addClass("col-md-1 text-center");
 	$("ul").addClass("list-inline");
-	$("li").addClass("border-left");
 	$("form").on("submit", function () {
 		$("#inputFilter").blur();
 		return false;
