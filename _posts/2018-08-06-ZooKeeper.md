@@ -1,8 +1,8 @@
 ---
 layout: post
-title: Lua
-tags: Other
-categories: Other
+title: ZooKeeper
+tags: ZooKeeper
+categories: JavaEE
 published: true
 ---
 
@@ -965,13 +965,568 @@ StatCallback existsCallback = new StatCallback() {
 
 ### 管理权变化
 
+应用客户端通过创建/master节点来推选自己为主节点（称为“主节点竞选”），如果znode节点已经存在，应用客户端确认自己不是主要主节点并返回，
+然而，这种实现方式无法容忍主要主节点的崩溃。如果主要主节点崩溃，备份主节点并不知道，因此需要在/master上设置监视点，在节点删除时（无论是显式关闭还是因为主要主节点的会话过期），ZooKeeper会通知客户端。
+
+```java
+// master创建回调
+StringCallback masterCreateCallback = new StringCallback() {
+	@Override
+	public void processResult(int rc, String path, Object ctx, String name) {
+		switch (Code.get(rc)) {
+			case CONNECTIONLOSS:
+				// 检查master，来确实是否能够创建节点
+				checkMaster();
+				break;
+			case OK:
+				state = MasterStates.ELECTED;
+				// OK就行使领导权
+				takeLeadership();
+				break;
+			case NODEEXISTS:
+				state = MasterStates.NOTELECTED;
+				// 已经存在就监视节点变化 
+				masterExists();
+				break;
+			default:
+				state = MasterStates.NOTELECTED;
+				LOG.error("Something went wrong when running for master.",
+						KeeperException.create(Code.get(rc), path));
+		}
+		LOG.info("I'm " + (state == MasterStates.ELECTED ? "" : "not ") + "the leader " + serverId);
+	}
+};
+void masterExists() {
+	// exist监视
+	zk.exists("/master",
+			masterExistsWatcher,
+			masterExistsCallback,
+			null);
+}
+Watcher masterExistsWatcher = new Watcher() {
+	@Override
+	public void process(WatchedEvent e) {
+		if (e.getType() == EventType.NodeDeleted) {
+			assert "/master".equals(e.getPath());
+			// 获取master所有权
+			runForMaster();
+		}
+	}
+};
+```
+
+
+
+```java
+StatCallback masterExistsCallback = new StatCallback() {
+	@Override
+	public void processResult(int rc, String path, Object ctx, Stat stat) {
+		switch (Code.get(rc)) {
+			case CONNECTIONLOSS:
+				// 失败重试
+				masterExists();
+				break;
+			case OK:
+				// 如果create回调和exist执行期间被删除，返回OK后判断stat是否为空
+				// 因为无法保证监听点设置在节点删除之前
+				if (stat == null) {
+					state = MasterStates.RUNNING;
+					// 尝试称为master
+					runForMaster();
+				}
+				break;
+			case NONODE:
+				state = MasterStates.RUNNING;
+				runForMaster();
+				LOG.info("It sounds like the previous master is gone, " +
+						"so let's run for master again.");
+				break;
+			default:
+				// 其它情况检查/master节点做出判断
+				// 如果是创建通知，则会通过masterCheckCallback的NONODE重新竞选
+				checkMaster();
+				break;
+		}
+	}
+};
+```
+
+只要客户端程序运行中，且没有成为主要主节点，客户端竞选主节点并执行exists来设置监视点，这一模式就会一直运行下去。
+如果客户端成为主要主节点，但却崩溃了，客户端重启还继续重新执行这些代码。
+
+主节点竞选中可能的交错操作：
+
+![主节点竞选中可能的交错操作](/static/img/2018-08-06-ZooKeeper/2018-08-08-21-31-11.png)
+
+如果竞选主节点成功，create操作执行完成，应用客户端不需要做其他事情（图中a）。  
+如果create操作失败，则意味着该节点已经存在，客户端就会执行exists操作来设置/master节点的监视点（图中b）。  
+在竞选主节点和执行exists操作之间，也许/master节点已经删除了，这时，如果exists调用返回该节点依然存在，客户端只需要等待通知的到来，否则就需要再次尝试创建/master进行竞选主节点操作。
+如果创建/master节点成功，监视点就会被触发，表示znode节点发生了变化（图中c），不过，这个通知没有什么意义，因为这是客户端自己引起的变化。  
+如果再次执行create操作失败，就会通过执行exists设置监视点来重新执行这一流程（图中d）。
+
 ### 主节点等待从节点的变化
+
+系统中任何时候都可能发生新的从节点加入进来，或旧的从节点退役的情况，从节点执行分配给它的任务前也许会崩溃。
+为了确认某个时间点可用的从节点信息，通过在ZooKeeper中的/workers下添加子节点来注册新的从节点。
+当一个从节点崩溃或从系统中被移除，如会话过期等情况，需要自动将对应的znode节点删除。优雅实现的从节点会显式地关闭其会话，而不需要ZooKeeper等待会话过期。
+
+```java
+Watcher workersChangeWatcher = new Watcher() {
+	@Override
+	public void process(WatchedEvent e) {
+		if (e.getType() == EventType.NodeChildrenChanged) {
+			assert "/workers".equals(e.getPath());
+			getWorkers();
+		}
+	}
+};
+
+void getWorkers() {
+	zk.getChildren("/workers",
+			workersChangeWatcher,
+			workersGetChildrenCallback,
+			null);
+}
+
+ChildrenCallback workersGetChildrenCallback = new ChildrenCallback() {
+	@Override
+	public void processResult(int rc, String path, Object ctx, List<String> children) {
+		switch (Code.get(rc)) {
+			case CONNECTIONLOSS:
+				// 重新获取并监视
+				getWorkers();
+				break;
+			case OK:
+				LOG.info("Succesfully got a list of workers: "
+						+ children.size()
+						+ " workers");
+				// 重新分配崩溃节点任务，并重新设置从节点列表
+				reassignAndSet(children);
+				break;
+			default:
+				LOG.error("getChildren failed",
+						KeeperException.create(Code.get(rc), path));
+		}
+	}
+};
+// 本地缓存
+protected ChildrenCache workersCache;
+
+void reassignAndSet(List<String> children) {
+	List<String> toProcess;
+
+	if (workersCache == null) {
+		// 第一次初始化
+		workersCache = new ChildrenCache(children);
+		toProcess = null;
+	} else {
+		LOG.info("Removing and setting");
+		// 检查是否有节点被移除了
+		toProcess = workersCache.removedAndSet(children);
+	}
+	// 重新分配任务
+	if (toProcess != null) {
+		for (String worker : toProcess) {
+			getAbsentWorkerTasks(worker);
+		}
+	}
+}
+```
+
+需要保存之前获得的信息，因此使用本地缓存。假设在第一次获得从节点列表后，当收到从节点列表更新的通知时，如果没有保存旧的信息，即使再次读取信息也不知道具体变化的信息是什么。
+本例中的缓存类简单地保存主节点上次读取的列表信息，并实现检查变化信息的一些方法。
+
+**基于CONNECTIONLOSS事件的监视**
+
+监视点的操作执行成功后就会为一个znode节点设置一个监视点，如果ZooKeeper的操作因为客户端连接断开而失败，应用需要再次执行这些调用。
 
 ### 主节点等待新任务进行分配
 
+与等待从节点列表变化类似，主要主节点等待添加到/tasks节点中的新任务。主节点首先获得当前的任务集，并设置变化情况的监视点。
+在ZooKeeper中，/tasks的子节点表示任务集，每个子节点对应一个任务，一旦主节点获得还未分配的任务信息，主节点会随机选择一个从节点，将这个任务分配给从节点。
+
+```java
+Watcher tasksChangeWatcher = new Watcher() {
+	@Override
+	public void process(WatchedEvent e) {
+		if (e.getType() == EventType.NodeChildrenChanged) {
+			assert "/tasks".equals(e.getPath());
+			getTasks();
+		}
+	}
+};
+
+void getTasks() {
+	zk.getChildren("/tasks",
+			tasksChangeWatcher,
+			tasksGetChildrenCallback,
+			null);
+}
+
+ChildrenCallback tasksGetChildrenCallback = new ChildrenCallback() {
+	@Override
+	public void processResult(int rc, String path, Object ctx, List<String> children) {
+		switch (Code.get(rc)) {
+			case CONNECTIONLOSS:
+				getTasks();
+				break;
+			case OK:
+				// List<String> toProcess;
+				// if (tasksCache == null) {
+				// 	tasksCache = new ChildrenCache(children);
+				// 	toProcess = children;
+				// } else {
+				// 	toProcess = tasksCache.addedAndSet(children);
+				// }
+				// if (toProcess != null) {
+				// 这里简化了设计，因为分配完会删除，所以拿到的都是未分配的
+				if (children != null) {
+					// 分配列表任务
+					assignTasks(toProcess);
+				}
+				break;
+			default:
+				LOG.error("getChildren failed.",
+						KeeperException.create(Code.get(rc), path));
+		}
+	}
+};
+```
+
+```java
+void assignTasks(List<String> tasks) {
+	for (String task : tasks) {
+		getTaskData(task);
+	}
+}
+void getTaskData(String task) {
+	zk.getData("/tasks/" + task,
+			false,
+			taskDataCallback,
+			task);
+}
+
+DataCallback taskDataCallback = new DataCallback() {
+	@Override
+	public void processResult(int rc, String path, Object ctx, byte[] data, Stat stat) {
+		switch (Code.get(rc)) {
+			case CONNECTIONLOSS:
+				getTaskData((String) ctx);
+				break;
+			case OK:
+				/*
+				 * Choose worker at random.
+				 */
+				List<String> list = workersCache.getList();
+				String designatedWorker = list.get(random.nextInt(list.size()));
+				/*
+				 * Assign task to randomly chosen worker.
+				 */
+				String assignmentPath = "/assign/" + designatedWorker + "/" + (String) ctx;
+				LOG.info("Assignment path: " + assignmentPath);
+				// 分配任务
+				createAssignment(assignmentPath, data);
+				break;
+			default:
+				LOG.error("Error when trying to get task data.",
+						KeeperException.create(Code.get(rc), path));
+		}
+	}
+};
+```
+
+```java
+void createAssignment(String path, byte[] data) {
+	// 创建分配节点
+	zk.create(path,
+			data,
+			Ids.OPEN_ACL_UNSAFE,
+			CreateMode.PERSISTENT,
+			assignTaskCallback,
+			data);
+}
+
+StringCallback assignTaskCallback = new StringCallback() {
+	@Override
+	public void processResult(int rc, String path, Object ctx, String name) {
+		switch (Code.get(rc)) {
+			case CONNECTIONLOSS:
+				createAssignment(path, (byte[]) ctx);
+				break;
+			case OK:
+				LOG.info("Task assigned correctly: " + name);
+				// 删除/task下任务
+				deleteTask(name.substring(name.lastIndexOf("/") + 1));
+				break;
+			case NODEEXISTS:
+				LOG.warn("Task already assigned");
+				break;
+			default:
+				LOG.error("Error when trying to assign task.",
+						KeeperException.create(Code.get(rc), path));
+		}
+	}
+};
+```
+
+对于新任务，主节点选择一个从节点分配任务之后，主节点就会在/assign/work-id节点下创建一个新的znode节点，其中id为从节点标识符，之后主节点从任务列表中删除该任务节点。
+
+当主节点为某个标识符为id的从节点创建任务分配节点时，假设从节点在任务分配节点（/assign/work-id）上注册了监视点，ZooKeeper会向从节点发送一个通知。
+
+_注意，主节点在成功分配任务后，会删除/tasks节点下对应的任务。这种方式简化了主节点角色接收新任务并分配的设计，如果任务列表中混合的已分配和未分配的任务，主节点还需要区分这些任务。_
+
+```java
+void deleteTask(String name) {
+	zk.delete("/tasks/" + name, -1, taskDeleteCallback, null);
+}
+
+VoidCallback taskDeleteCallback = new VoidCallback() {
+	@Override
+	public void processResult(int rc, String path, Object ctx) {
+		switch (Code.get(rc)) {
+			case CONNECTIONLOSS:
+				deleteTask(path);
+				break;
+			case OK:
+				LOG.info("Successfully deleted " + path);
+				break;
+			case NONODE:
+				LOG.info("Task has been deleted already");
+				break;
+			default:
+				LOG.error("Something went wrong here, " + KeeperException.create(Code.get(rc), path));
+		}
+	}
+};
+```
+
 ### 从节点等待分配新任务
 
+从节点第一步需要先向ZooKeeper注册自己。
+
+```java
+public void register() {
+	name = "worker-" + serverId;
+	zk.create("/workers/" + name,
+			new byte[0],
+			Ids.OPEN_ACL_UNSAFE,
+			CreateMode.EPHEMERAL,
+			createWorkerCallback, null);
+}
+
+StringCallback createWorkerCallback = new StringCallback() {
+	@Override
+	public void processResult(int rc, String path, Object ctx, String name) {
+		switch (Code.get(rc)) {
+			case CONNECTIONLOSS:
+				/*
+				 * Try again. Note that registering again is not a problem.
+				 * If the znode has already been created, then we get a
+				 * NODEEXISTS event back.
+				 */
+				register();
+				break;
+			case OK:
+				LOG.info("Registered successfully: " + serverId);
+				break;
+			case NODEEXISTS:
+				LOG.warn("Already registered: " + serverId);
+				break;
+			default:
+				LOG.error("Something went wrong: ", KeeperException.create(Code.get(rc), path));
+		}
+	}
+};
+```
+
+添加该znode节点会通知主节点，这个从节点的状态是活跃的，且已准备好处理任务。这里为了简化没有使用idle/busy状态
+
+同样，还创建了/assign/work-id节点，这样，主节点可以为这个从节点分配任务。
+
+如果在创建/assign/worker-id节点之前创建了/workers/worker-id节点，可能会陷入以下情况，主节点尝试分配任务，因分配节点的父节点还没有创建，导致主节点分配失败。
+为了避免这种情况，需要先创建/assign/worker-id节点，而且从节点需要在/assign/worker-id节点上设置监视点来接收新任务分配的通知。
+
+一旦有任务列表分配给从节点，从节点就会从/assign/worker-id获取任务信息并执行任务。
+
+从节点从本地列表中获取每个任务的信息并验证任务是否还在待执行的队列中，从节点保存一个本地待执行任务的列表就是为了这个目的。
+
+_注意，为了释放回调方法的线程，在单独的线程对从节点的已分配任务进行循环，否则，会阻塞其他的回调方法的执行。_
+
+```java
+Watcher newTaskWatcher = new Watcher() {
+	@Override
+	public void process(WatchedEvent e) {
+		if (e.getType() == EventType.NodeChildrenChanged) {
+			assert new String("/assign/worker-" + serverId).equals(e.getPath());
+			getTasks();
+		}
+	}
+};
+
+void getTasks() {
+	zk.getChildren("/assign/worker-" + serverId,
+			newTaskWatcher,
+			tasksGetChildrenCallback,
+			null);
+}
+
+protected ChildrenCache assignedTasksCache = new ChildrenCache();
+
+ChildrenCallback tasksGetChildrenCallback = new ChildrenCallback() {
+	@Override
+	public void processResult(int rc, String path, Object ctx, List<String> children) {
+		switch (Code.get(rc)) {
+			case CONNECTIONLOSS:
+				getTasks();
+				break;
+			case OK:
+				if (children != null) {
+					// 单独线程中执行任务
+					executor.execute(new Runnable() {
+						List<String> children;
+						DataCallback cb;
+						/*
+						 * Initializes input of anonymous class
+						 */
+						public Runnable init(List<String> children, DataCallback cb) {
+							this.children = children;
+							this.cb = cb;
+
+							return this;
+						}
+						@Override
+						public void run() {
+							if (children == null) {
+								return;
+							}
+							LOG.info("Looping into tasks");
+							setStatus("Working");
+							// 循环子节点列表
+							for (String task : children) {
+								LOG.trace("New task: {}", task);
+								// 获得任务信息并执行
+								zk.getData("/assign/worker-" + serverId + "/" + task,
+										false,
+										cb,
+										task);
+							}
+						}
+						// 这里获得未执行的任务，或者在for循环时判断未执行才获得并执行
+					}.init(assignedTasksCache.addedAndSet(children), taskDataCallback));
+				}
+				break;
+			default:
+				System.out.println("getChildren failed: " + KeeperException.create(Code.get(rc), path));
+		}
+	}
+};
+```
+
+**会话事件和监视点**
+
+当与服务端的连接断开时（例如，服务端崩溃时），直到连接重新建立前，不会传送任何监视点。因此，会话事件CONNECTIONLOSS会发送给所有已知的监视点进行处理。
+一般来说，应用使用会话事件进入安全模式：ZooKeeper客户端在失去连接后不会接收任何事件，因此客户端需要继续保持这种状态。
+在主从应用的例子中，处理提交任务外，其他所有动作都是被动的，所以如果主节点或从节点发生连接断开时，不会触发任何动作。而且在连接断开时，主从应用中的客户端也无法提交新任务以及接收任务状态的通知。
+
 ### 客户端等待任务的执行结果
+
+假设应用客户端已经提交了一个任务，现在客户端需要知道该任务何时被执行，以及任务状态。从节点执行执行一个任务时，会在/status下创建一个znode节点。
+
+```java
+void submitTask(String task, TaskObject taskCtx) {
+	taskCtx.setTask(task);
+	zk.create("/tasks/task-",
+			task.getBytes(),
+			OPEN_ACL_UNSAFE,
+			CreateMode.PERSISTENT_SEQUENTIAL,
+			createTaskCallback,
+			taskCtx);// 传递了一个上下文Task类的实例
+}
+
+StringCallback createTaskCallback = new StringCallback() {
+	public void processResult(int rc, String path, Object ctx, String name) {
+		switch (Code.get(rc)) {
+			case CONNECTIONLOSS:
+				/*
+				 * Handling connection loss for a sequential node is a bit
+				 * delicate. Executing the ZooKeeper create command again
+				 * might lead to duplicate tasks. For now, let's assume
+				 * that it is ok to create a duplicate task.
+				 */
+				// 可能造成重复，暂时忽略
+				submitTask(((TaskObject) ctx).getTask(), (TaskObject) ctx);
+				break;
+			case OK:
+				LOG.info("My created task name: " + name);
+				((TaskObject) ctx).setTaskName(name);
+				// 设置监视点
+				watchStatus(name.replace("/tasks/", "/status/"), ctx);
+				break;
+			default:
+				LOG.error("Something went wrong" + KeeperException.create(Code.get(rc), path));
+		}
+	}
+};
+```
+
+**有序节点是否创建成功？**
+
+在创建有序节点时发生CONNECTIONLOSS事件，处理这种情况比较棘手，因为ZooKeeper每次分配一个序列号，对于连接断开的客户端，无法确认这个节点是否创建成功，
+尤其是在其他客户端一同并发请求时（并发请求是指多个客户端进行相同的请求）。
+为了解决这个问题，我们需要添加一些提示信息来标记这个znode节点的创建者，比如，在任务名称中加入服务器ID等信息，通过这个方法，我们就可以通过获取所有任务列表来确认任务是否添加成功。
+
+检查状态节点是否已经存在（也许任务很快处理完成），并设置监视点。
+
+```java
+protected ConcurrentHashMap<String, Object> ctxMap = new ConcurrentHashMap<String, Object>();
+void watchStatus(String path, Object ctx) {
+	ctxMap.put(path, ctx);
+	// 客户端通过该方法传递上下对象，当收到状态节点的通知时，就可以修改这个表示任务的对象
+	zk.exists(path,
+			statusWatcher,
+			existsCallback,
+			ctx);
+}
+
+Watcher statusWatcher = new Watcher() {
+	public void process(WatchedEvent e) {
+		if (e.getType() == EventType.NodeCreated) {
+			assert e.getPath().contains("/status/task-");
+			assert ctxMap.containsKey(e.getPath());
+			zk.getData(e.getPath(),
+					false,
+					getDataCallback,
+					ctxMap.get(e.getPath()));
+		}
+	}
+};
+
+StatCallback existsCallback = new StatCallback() {
+	public void processResult(int rc, String path, Object ctx, Stat stat) {
+		switch (Code.get(rc)) {
+			case CONNECTIONLOSS:
+				watchStatus(path, ctx);
+				break;
+			case OK:
+				if (stat != null) {
+					// 状态节点已经存在，客户端获取这个节点
+					zk.getData(path, false, getDataCallback, ctx);
+					LOG.info("Status node is there: " + path);
+				}
+				break;
+			case NONODE:
+				// 状态节点不存在，不做任何事情
+				break;
+			default:
+				LOG.error("Something went wrong when " +
+						"checking if the status node exists: " +
+						KeeperException.create(Code.get(rc), path));
+
+				break;
+		}
+	}
+};
+```
 
 ### multiop
 
