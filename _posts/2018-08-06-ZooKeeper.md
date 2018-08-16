@@ -366,7 +366,7 @@ ZooKeeper确保每一个变化相对于所有其他已执行的更新是完全�
 
 ![客户端重连的例子](/static/img/2018-08-06-ZooKeeper/2018-08-06-18-09-22.png)
 
-当客户端因超时与s1断开连接后，客户端开始尝试连接s2，但s2延迟于客户端所知的变化。然而，s3对这个变化的情况与客户端保持一致，所以s3 可以安全连接。
+当客户端因超时与s1断开连接后，客户端开始尝试连接s2，但s2延迟于客户端所知的变化。然而，s3对这个变化的情况与客户端保持一致，所以s3可以安全连接。
 
 ### ZooKeeper与仲裁模式
 
@@ -2167,32 +2167,1637 @@ Curator作为ZooKeeper的一个高层次封装库，为开发人员封装了ZooK
 
 Curator为开发人员实现了一组常用的管理操作的菜谱，同时结合开发过程中的最佳实践和常见的边际情况的处理。
 例如，Curator实现了如锁（lock）、屏障（barrier）、缓存（cache）这些原语的菜谱，还实现了流畅（fluent）式的开发风格的接口。
-流畅式接口能够让我们将ZooKeeper中create、delete、getData等操作以流水线式的编程方式链式执行。
+流畅式接口能够让将ZooKeeper中create、delete、getData等操作以流水线式的编程方式链式执行。
 同时，Curator还提供了命名空间（namespace）、自动重连和一些其他组件，使得应用程序更加健壮。
 
 ### Cureator客户端程序
 
-### 流式API
+首先需要创建一个客户端实例，客户端实例为CuratorFramework类的实例对象，通过调用Curator提供的工厂方法来获得该实例：
+
+```java
+CuratorFramework zkc =CuratorFrameworkFactory.newClient(connectString, retryPolicy);
+```
+
+* connectString输入参数为将要连接的ZooKeeper服务器的列表，就像创建ZooKeeper客户端时一样。
+* retryPolicy参数为Curator提供的新特性，通过这个参数，开发人员可以指定对于失去连接事件重试操作的处理策略。
+	* 常规的ZooKeeper接口的开发中，在发生连接丢失事件时，往往需要再次提交操作请求。
+
+> 个CuratorZooKeeperClient类，该类在ZooKeeper客户端实例上提供了某些附加功能，如保证请求操作在不可预见的连接断开情况下也能够安全执行，
+> 与CuratorFramework类不同，CuratorZooKeeperClient类中的操作执行与ZooKeeper客户端句柄直接相对应。
+
+### 流畅式API
+
+```java
+zk.create("/mypath",
+          new byte[0],
+          ZooDefs.Ids.OPEN_ACL_UNSAFE,
+          CreateMode.PERSISTENT);
+zkc.create().withMode(CreateMode.PERSISTENT).forPath("/mypath", new byte[0]);
+```
+
+delete、getData、checkExists和getChildren方法也适用这种Builder模式。
+
+对于异步的执行方法，只需要增加inBackground：
+
+```java
+zkc.create().inBackground().withMode(CreateMode.PERSISTENT).forPath("/mypath", new byte[0]);
+```
+
+很多方法可以实现异步调用的回调处理。
+
+inBackground调用可以传入一个上下文对象，通过该参数可以传入一个具体的回调方法的实现，或是一个执行回调的执行器（java.util.concurrent.Executor）。
+可以通过执行器将回调方法的执行与ZooKeeper客户端线程的运行解耦，采用执行器常常比为每个任务新建一个线程更好。
+
+```java
+zkc.getData().inBackground().watched().forPath("/mypath");
+```
+
+监视点将会通过监听器触发通知，这些通知将会以WATCHED事件传递给指定的监听器。
+还可以使用usingWathcer方法替换watched方法，usingWathcer方法接受一个普通的ZooKeeper的Wathcer对象，并在接收到通知后调用该监视点方法。
+第三种选择就是传入一个CuratorWatcher对象，CuratorWatcher的process方法与ZooKeeper的Watcher不同的是，它可能会抛出异常。
 
 ### 监听器
 
+监听器（listener）负责处理Curator库所产生的事件，使用这种机制时，应用程序中会实现一个或多个监听器，
+并将这些监听器注册到Curator的框架客户端实例中，当有事件发生时，这些事件就会传递给所有已注册的监听器。
+监听器机制是一种通用模式，在异步处理事件时都可以使用这种机制。
+
+Curator使用监听器来处理回调方法和监视通知。该机制也可以用于后台任务产生的异常处理逻辑中。
+
+```java
+CuratorListener masterListener = new CuratorListener() {
+	@Override
+	public void eventReceived(CuratorFramework client, CuratorEvent event){
+		try{
+			LOG.info("Event path: " + event.getPath());
+			switch (event.getType()) { 
+			case CHILDREN:
+				if(event.getPath().contains("/assign")) {
+					LOG.info("Succesfully got a list of assignments: " 
+							+ event.getChildren().size() 
+							+ " tasks");
+					/*
+					 * Delete the assignments of the absent worker
+					 */
+					for(String task : event.getChildren()){
+						deleteAssignment(event.getPath() + "/" + task);
+					}
+					/*
+					 * Delete the znode representing the absent worker
+					 * in the assignments.
+					 */
+					deleteAssignment(event.getPath());
+					/*
+					 * Reassign the tasks.
+					 */
+					assignTasks(event.getChildren());
+				} else {
+					LOG.warn("Unexpected event: " + event.getPath());
+				}
+			
+				break;
+			case CREATE:
+				/*
+				 * Result of a create operation when assigning
+				 * a task.
+				 */
+				if(event.getPath().contains("/assign")) {
+					LOG.info("Task assigned correctly: " + event.getName());
+					deleteTask(event.getPath().substring(event.getPath().lastIndexOf('-') + 1));
+				}
+				break;
+			case DELETE:
+				/*
+				 * We delete znodes in two occasions:
+				 * 1- When reassigning tasks due to a faulty worker;
+				 * 2- Once we have assigned a task, we remove it from
+				 *    the list of pending tasks. 
+				 */
+				if(event.getPath().contains("/tasks")) {
+					LOG.info("Result of delete operation: " + event.getResultCode() + ", " + event.getPath());
+				} else if(event.getPath().contains("/assign")) {
+					LOG.info("Task correctly deleted: " + event.getPath());
+					break;
+				}
+				break;
+			case WATCHED:
+				// There is no case implemented currently.
+				break;
+			default:
+				LOG.error("Default case: " + event.getType());
+			}
+		} catch (Exception e) {
+			LOG.error("Exception while processing event.", e);
+			try{
+				close();
+			} catch (IOException ioe) {
+				LOG.error("IOException while closing.", ioe);
+			}
+		}
+	};
+};
+```
+
+```java
+client = CuratorFrameworkFactory.newClient(hostPort, retryPolicy);
+// 注册监听器：
+client.getCuratorListenable().addListener(masterListener);
+```
+
+还有一类比较特殊的监听器，这类监听器负责处理后台工作线程捕获的异常时的错误报告，该类监听器提供了底层细节的处理，
+不过，也许你在你的应用程序中需要处理这类问题。当应用程序需要处理这些问题时，就必须实现另一个监听器：
+
+```java
+UnhandledErrorListener errorsListener = new UnhandledErrorListener() {
+    public void unhandledError(String message, Throwable e) {
+		LOG.error("Unrecoverable error: " + message, e);
+        try {
+            close();
+        } catch (IOException ioe) {
+            LOG.warn( "Exception when closing.", ioe );
+        }
+    }
+};
+client.getUnhandledErrorListenable().addListener(errorsListener);
+```
+
+* 之前采用链式调用和回调方法，而且每个回调方法都需要提供一个不同的回调实现，
+* 而在Curator实例中，回调方法或监视点通知这些细节均被封装为Event类，这也是更适合使用一个事件处理器实现方式。
+
 ### Curator中状态的转换
+
+在Curator中暴露了与ZooKeeper不同的一组状态，比如SUSPENDED状态，还有Curator使用LOST来表示会话过期的状态。
+
+Curator连接状态机模型：
+
+![Curator连接状态机模型](/static/img/2018-08-06-ZooKeeper/2018-08-13-16-14-40.png)
+
+当处理状态的转换时，建议将所有主节点操作请求暂停，因为并不知道ZooKeeper客户端能否在会话过期前重新连接，
+即使ZooKeeper客户端重新连接成功，也可能不再是主要主节点的角色，因此谨慎处理连接丢失的情况，对应用程序更加安全。
+
+并未涉及的状态还有一个READ_ONLY状态，当ZooKeeper集群启用了只读模式，客户端所连接的服务器就会进入只读模式中，此时的连接状态也将进入只读模式。
+服务器转换到只读模式后，该服务器就会因隔离问题而无法与其他服务器共同形成仲裁的最低法定数量，
+当连接状态为只读模式，客户端也将漏掉此时发生的任何更新操作，因为如果集群中存在一个子集的服务器数量，可以满足仲裁最低法定数量，
+并可以接收到客户端的对ZooKeeper的更新操作，还是会发生ZooKeeper的更新，也许这个子集的服务器会持续运行很久（ZooKeeper无法控制这种情况），那么漏掉的更新操作可能会无限多。
+漏掉更新操作的结果可能会导致应用程序的不正确的操作行为，所以，强烈建议启用该模式前仔细考虑其后果。
+
+_只读模式并不是Curator所独有的功能，而是通过ZooKeeper启用该选项。_
 
 ### 两种边界情况
 
+有两种有趣的错误场景，在Curator中都可以处理得很好：
+
+* 第一种是在有序节点的创建过程中发生的错误情况的处理；
+* 第二种为删除一个节点时的错误处理。
+
+#### 有序节点的情况
+
+如果客户端所连接的服务器崩溃了，但还没来得及返回客户端所创建的有序节点的节点名称（即节点序列号），或者客户端只是连接丢失，
+客户端没接收到所请求操作的响应信息，结果，客户端并不知道所创建的znode节点路径名称。
+
+为了解决这个问题，CreateBuilder提供了一个withProtection方法来通知Curator客户端，在创建的有序节点前添加一个唯一标识符，
+如果create操作失败了，客户端就会开始重试操作，而重试操作的一个步骤就是验证是否存在一个节点包含这个唯一标识符。
+
+#### 删除节点的保障
+
+如果客户端在执行delete操作时，与服务器之间的连接丢失，客户端并不知道delete操作是否成功执行。
+如果一个znode节点删除与否表示某些特殊情况，例如，表示一个资源处于锁定状态，因此确保该节点删除才能确保资源的锁定被释放，以便可以再次使用。
+
+Curator客户端中提供了一个方法，对应用程序的delete操作的执行提供了保障，Curator客户端会重新执行操作，直到成功为止，或Curator客户端实例不可用时。
+使用该功能，只需要使用DeleteBuilder接口中定义的guaranteed方法。
+
 ### 菜谱
+
+主节点例子的实现中，用到了三种菜谱：LeaderLatch、LeaderSelector和PathChildrenCache。
 
 #### 群首闩
 
+可以在应用程序中使用群首闩（leader latch）这个原语进行主节点选举的操作。
+
+```java
+leaderLatch = new LeaderLatch(client, "/master", myId);
+```
+
+LeaderLatch的构造函数中，需要传入一个Curator框架客户端的实例，一个用于表示集群管理节点的群组的ZooKeeper路径，以及一个表示当前主节点的标识符。
+
+为了在Curator客户端获得或失去管理权时能够进行回调处理操作，需要注册一个LeaderLatchListener接口的实现，该接口中有两个方法：isLeader和notLeader。
+
+```java
+@Override
+public void isLeader() {
+	/*
+	 * Start workersCache，缓存列表实例，确保有可以分配任务的从节点
+	 */
+	try {
+		workersCache.getListenable().addListener(workersCacheListener);
+		workersCache.start();
+		(new RecoveredAssignments(client.getZookeeperClient().getZooKeeper())).recover(new RecoveryCallback() {
+			@Override
+			public void recoveryComplete(int rc, List<String> tasks) {
+				try {
+					if (rc == RecoveryCallback.FAILED) {
+						LOG.warn("Recovery of assigned tasks failed.");
+					} else {
+						LOG.info("Assigning recovered tasks");
+						recoveryLatch = new CountDownLatch(tasks.size());
+						// 发现之前的主节点没有分配完的任务，继续分配
+						assignTasks(tasks);
+					}
+					// 实现了一个任务分配的屏障，这样就可以在开始分配新任务前，等待已恢复的任务的分配完成，
+					// 如果不这样做，新的主节点会再次分配所有已恢复的任务。
+					// 启动了一个单独的线程进行处理，以便不会锁住ZooKeeper客户端回调线程的运行。
+					new Thread(new Runnable() {
+						public void run() {
+							try {
+								/*
+								 * Wait until recovery is complete
+								 */
+								recoveryLatch.await();
+								/*
+								 * Starts tasks cache，主节点分配完成回复任务的分配操作，开始执行新任务的分配
+								 */
+								tasksCache.getListenable().addListener(tasksCacheListener);
+								tasksCache.start();
+							} catch (Exception e) {
+								LOG.warn("Exception while assigning and getting tasks.", e);
+							}
+						}
+					}).start();
+				} catch (Exception e) {
+					LOG.error("Exception while executing the recovery callback", e);
+				}
+			}
+		});
+	} catch (Exception e) {
+		LOG.error("Exception when starting leadership", e);
+	}
+}
+@Override
+public void notLeader() {
+	LOG.info("Lost leadership");
+	try {
+		close();
+	} catch (IOException e) {
+		LOG.warn("Exception while closing", e);
+	}
+}
+public void runForMaster() throws Exception {
+	/*
+	 * Register listeners
+	 */
+	client.getCuratorListenable().addListener(masterListener);
+	client.getUnhandledErrorListenable().addListener(errorsListener);
+	/*
+	 * Start master election
+	 */
+	LOG.info("Starting master selection: " + myId);
+	leaderLatch.addListener(this);
+	leaderLatch.start();
+}
+```
+
+对于notLeader方法，会在主节点失去管理权时进行调用，在本例中，只是简单地关闭了所有对象实例，对这个例子来说，这些操作已经足够了。
+在实际的应用程序中，你也许还需要进行某些状态的清理操作并等待再次成为主节点。如果LeaderLatch对象没有关闭，Curator客户端有可能再次获得管理权。
+
 #### 群首选举器
+
+选举主节点时还可以使用的另一个菜谱为LeaderSelector。LeaderSelector和LeaderLatch之间主要区别在于使用的监听器接口不同，
+其中LeaderSelector使用了LeaderSelectorListener接口，该接口中定义了takeLeadership方法，并继承了stateChanged方法，可以在的应用程序中使用群首闩原语来进行一个主节点的选举操作。
+
+```java
+leaderSelector = new LeaderSelector(client, "/master", this);
+```
+
+LeaderSelector的构造函数中，接受一个Curator框架客户端实例，一个表示该主节点所参与的集群管理节点群组的ZooKeeper路径，以及一个LeaderSelectorListener接口的实现类的实例。
+
+集群管理节点群组表示所有参与主节点选举的Curator客户端。在LeaderSelectorListener的实现中必须包含takeLeadership方法和stateChanged方法，其中takeLeadership方法用于获取管理权。
+
+```java
+private CountDownLatch leaderLatch = new CountDownLatch(1);
+private CountDownLatch closeLatch = new CountDownLatch(1);
+@Override
+public void takeLeadership(CuratorFramework client) throws Exception {
+	LOG.info("Mastership participants: " + myId + ", " + leaderSelector.getParticipants());
+	/*
+	 * Start workersCache
+	 */
+	workersCache.getListenable().addListener(workersCacheListener);
+	workersCache.start();
+	(new RecoveredAssignments(client.getZookeeperClient().getZooKeeper())).recover(new RecoveryCallback() {
+		public void recoveryComplete(int rc, List<String> tasks) {
+			try {
+				if (rc == RecoveryCallback.FAILED) {
+					LOG.warn("Recovery of assigned tasks failed.");
+				} else {
+					LOG.info("Assigning recovered tasks");
+					recoveryLatch = new CountDownLatch(tasks.size());
+					assignTasks(tasks);
+				}
+				new Thread(new Runnable() {
+					public void run() {
+						try {
+							/*
+							 * Wait until recovery is complete
+							 */
+							recoveryLatch.await();
+							/*
+							 * Starts tasks cache
+							 */
+							tasksCache.getListenable().addListener(tasksCacheListener);
+							tasksCache.start();
+						} catch (Exception e) {
+							LOG.warn("Exception while assigning and getting tasks.", e);
+						}
+					}
+				}).start();
+				/*
+				 * Decrements latch，等待获取管理权，处理完上次未处理的任务后开始新任务
+				 */
+				leaderLatch.countDown();
+			} catch (Exception e) {
+				LOG.error("Exception while executing the recovery callback", e);
+			}
+		}
+	});
+	/*
+	 * This latch is to prevent this call from exiting. If we exit, then
+	 * we release mastership.
+	 */
+	// 对于主节点来说，如果想要释放管理权只能退出takeLeadership方法，所以需要通过某些锁等机制来阻止该方法的退出
+	// 在退出主节点时通过递减闩（latch）值来实现。
+	closeLatch.await();
+}
+```
+
+```java
+// 不需要注册一个监听器（因为在构造函数中已经注册了监听器）
+public void runForMaster() {
+	/*
+	 * Register listeners
+	 */
+	client.getCuratorListenable().addListener(masterListener);
+	client.getUnhandledErrorListenable().addListener(errorsListener);
+	/*
+	 * Starting master
+	 */
+	LOG.info("Starting master selection: " + myId);
+	leaderSelector.setId(myId);
+	leaderSelector.start();
+}
+```
+
+另外还需要给这个主节点一个任意的标识符。
+
+虽然在本例中并未实现，但可以设置群首选择器在失去管理权后自动重新排队（LeaderSelector.autoRequeue）。
+重新排队意味着该客户端会一直尝试获取管理权，并在获得管理权后执行takeLeadership方法。
+
+作为LeaderSelectorListener接口实现的一部分，还实现了一个处理连接状态变化的方法：
+
+```java
+@Override
+public void stateChanged(CuratorFramework client, ConnectionState newState) {
+	switch (newState) {
+		case CONNECTED:
+			//Nothing to do in this case.
+			break;
+		case RECONNECTED:
+			// Reconnected, so I should
+			// still be the leader.
+			// 所有操作均需要通过ZooKeeper集群实现，
+			// 因此，如果连接丢失，主节点也就无法先进行任何操作请求，因此在这里最好什么都不做。
+			break;
+		case SUSPENDED:
+			LOG.warn("Session suspended");
+			break;
+		case LOST:
+			// 关闭程序
+			try {
+				close();
+			} catch (IOException e) {
+				LOG.warn("Exception while closing", e);
+			}
+			break;
+		case READ_ONLY:
+			// We ignore this case
+			break;
+	}
+}
+
+```
 
 #### 子节点缓存器
 
+使用该类保存从节点的列表和任务列表，该缓存器负责保存一份子节点列表的本地拷贝，并会在该列表发生变化时通知。
+
+_注意，因为时间问题，也许在某些特定时间点该缓存的数据集合与ZooKeeper中保存的信息并不一致，但这些变化最终都会反映到ZooKeeper中。_
+
+为了处理每一个缓存器实例的变化情况，需要一个PathChildrenCacheListener接口的实现类，该接口中只有一个方法childEvent。
+对于从节点信息的列表，只关心从节点离开的情况，因为需要重新分配已经分给这些节点的任务，而列表中添加信息对于分配新任务更加重要：
+
+```java
+PathChildrenCacheListener workersCacheListener = new PathChildrenCacheListener() {
+	@Override
+	public void childEvent(CuratorFramework client, PathChildrenCacheEvent event) {
+		if (event.getType() == PathChildrenCacheEvent.Type.CHILD_REMOVED) {
+			/*
+			 * Obtain just the worker's name
+			 */
+			try {
+				getAbsentWorkerTasks(event.getData().getPath().replaceFirst("/workers/", ""));
+			} catch (Exception e) {
+				LOG.error("Exception while trying to re-assign tasks", e);
+			}
+		}
+	}
+};
+private void getAbsentWorkerTasks(String worker) throws Exception {
+	/*
+	 * Get assigned tasks
+	 */
+	client.getChildren().inBackground().forPath("/assign/" + worker);
+}
+```
+
+对于任务列表，通过列表增加的情况来触发任务分配的过程：
+
+```java
+PathChildrenCacheListener tasksCacheListener = new PathChildrenCacheListener() {
+	public void childEvent(CuratorFramework client, PathChildrenCacheEvent event) {
+		if (event.getType() == PathChildrenCacheEvent.Type.CHILD_ADDED) {
+			try {
+				assignTask(event.getData().getPath().replaceFirst("/tasks/", ""),
+						event.getData().getData());
+			} catch (Exception e) {
+				LOG.error("Exception when assigning task.", e);
+			}
+		}
+	}
+};
+```
+
+_注意，这里假设至少有一个可用的从节点可以分配任务给它，当前没有可用的从节点时，需要暂停任务分配，并保存列表信息的增加信息，以便在从节点列表中新增可用从节点时可以将这些没有分配的任务进行分配。_
+
 ### 总结
+
+Curator实现了一系列很不错的ZooKeeper API的扩展，将ZooKeeper的复杂性进行了抽象，并实现了在实际生产环境中经验的最佳实践和社区讨论的某些特性。
 
 ## ZooKeeper内部原理
 
+选择某一个服务器，称之为群首（leader）。其他服务器追随群首，被称为追随者（follower）。
+
+群首作为中心点处理所有对ZooKeeper系统变更的请求，它就像一个定序器，建立了所有对ZooKeeper状态的更新的顺序，
+追随者接收群首所发出更新操作请求，并对这些请求进行处理，以此来保障状态更新操作不会发生碰撞。
+
+群首和追随者组成了保障状态变化有序的核心实体，同时还存在第三类服务器，称为观察者（observer）。
+观察者不会参与决策哪些请求可被接受的过程，只是观察决策的结果，观察者的设计只是为了系统的可扩展性。
+
+### 请求、事务和标识符
+
+ZooKeeper服务器会在本地处理只读请求（exists、getData和getChildren）。
+一个服务器接收到客户端的getData请求，服务器读取该状态信息，并将这些信息返回给客户端。
+
+因为服务器会在本地处理请求，所以ZooKeeper在处理以只读请求为主要负载时，性能会很高。
+还可以增加更多的服务器到ZooKeeper集群中，处理更多的读请求，大幅提高整体处理能力。
+
+那些会改变ZooKeeper状态的客户端请求（create、delete和setData）将会被转发给群首，群首执行相应的请求，并形成状态的更新，称为事务（transaction）。
+请求表示源自于客户端发起的操作，而事务则包含了对应请求处理而改变ZooKeeper状态所需要执行的步骤。
+
+假如一个客户端提交了一个对/z节点的setData请求，setData将会改变该znode节点数据信息，并会增加该节点的版本号，
+因此，对于这个请求的事务包括了两个重要字段：节点中新的数据字段值和该节点新的版本号。  
+当处理该事务时，服务端将会用事务中的数据信息来替换/z节点中原来的数据信息，并会用事务中的版本号更新该节点，而不是增加版本号的值。
+
+一个事务为一个单位，也就是说所有的变更处理需要以原子方式执行。
+
+ZooKeeper集群以事务方式运行，并确保所有的变更操作以原子方式被执行，同时不会被其他事务所干扰。
+在ZooKeeper中，并不存在传统的关系数据库中所涉及的回滚机制，而是确保事务的每一步操作都互不干扰。
+在很长的一段时间里，ZooKeeper所采用的设计方式为，在每个服务器中启动一个单独的线程来处理事务，通过单独的线程来保障事务之间的顺序执行互不干扰。
+最近，ZooKeeper增加了多线程的支持，以便提高事务处理的速度。
+
+同时一个事务还具有幂等性，也就是说，可以对同一个事务执行两次，得到的结果还是一样的，
+甚至还可以对多个事务执行多次，同样也会得到一样的结果，前提是确保多个事务的执行顺序每次都是一样的。
+事务的幂等性可以让在进行恢复处理时更加简单。
+
+当群首产生了一个事务，就会为该事务分配一个标识符，称之为ZooKeeper会话ID（zxid），通过Zxid对事务进行标识，就可以按照群首所指定的顺序在各个服务器中按序执行。
+服务器之间在进行新的群首选举时也会交换zxid信息，这样就可以知道哪个无故障服务器接收了更多的事务，并可以同步他们之间的状态信息。
+
+zxid为一个long型（64位）整数，分为两部分：时间戳（epoch）部分和计数器（counter）部分。每个部分为32位。
+通过该zab协议来广播各个服务器的状态变更信息会使用时间戳和计数器。
+
+### 群首选举
+
+群首为集群中的服务器选择出来的一个服务器，并会一直被集群所认可。
+设置群首的目的是为了对客户端所发起的ZooKeeper状态变更请求进行排序，包括：create、setData和delete操作。
+群首将每一个请求转换为一个事务，如前一节中所介绍，将这些事务发送给追随者，确保集群按照群首确定的顺序接受并处理这些事务。
+
+为了了解管理权的原理，一个服务器必须被仲裁的法定数量的服务器所认可。
+法定数量必须集群数量是能够交错在一起，以避免脑裂问题（split brain）：即两个集合的服务器分别独立的运行，形成了两个集群。
+这种情况将导致整个系统状态的不一致性，最终客户端也将根据其连接的服务器而获得不同的结果。
+
+选举并支持一个群首的集群服务器数量必须至少存在一个服务器进程的交叉，使用属于仲裁（quorum）来表示这样一个进程的子集，仲裁模式要求服务器之间两两相交。
+
+**进展**
+
+> 一组服务器达到仲裁法定数量是必需条件，如果足够多的服务器永久性地退出，无法达到仲裁法定数量，ZooKeeper也就无法取得进展。
+> 即使服务器退出后再次启动也可以，但必须保证仲裁的法定数量的服务器最终运行起来。
+
+每个服务器启动后进入LOOKING状态，开始选举一个新的群首或查找已经存在的群首，如果群首已经存在，其他服务器就会通知这个新启动的服务器，
+告知哪个服务器是群首，与此同时，新的服务器会与群首建立连接，以确保自己的状态与群首一致。
+
+如果集群中所有的服务器均处于LOOKING状态，这些服务器之间就会进行通信来选举一个群首，通过信息交换对群首选举达成共识的选择。
+在本次选举过程中胜出的服务器将进入LEADING状态，而集群中其他服务器将会进入FOLLOWING状态。
+
+对于群首选举的消息，称之为群首选举通知消息（leader election notifications），或简单地称为通知（notifications）。
+该协议非常简单，当一个服务器进入LOOKING状态，就会发送向集群中每个服务器发送一个通知消息，该消息中包括该服务器的投票（vote）信息，投票中包含服务器标识符（sid）和最近执行的事务的zxid信息，
+比如，一个服务器所发送的投票信息为（1，5），表示该服务器的sid为1，最近执行的事务的zxid为5（出于群首选举的目的，zxid只有一个数字，而在其他协议中，zxid则有时间戳epoch和计数器组成）。
+
+当一个服务器收到一个投票信息，该服务器将会根据以下规则修改自己的投票信息：
+
+1. 将接收的voteId和voteZxid作为一个标识符，并获取接收方当前的投票中的zxid，用myZxid和mySid表示接收方服务器自己的值。
+2. 如果（voteZxid>myZxid）或者（voteZxid=myZxid且voteId>mySid），保留当前的投票信息。
+3. 否则，修改自己的投票信息，将voteZxid赋值给myZxid，将voteId赋值给mySid。
+
+简而言之，只有最新的服务器将赢得选举，因为其拥有最近一次的zxid。这样做将会简化群首崩溃后重新仲裁的流程。
+如果多个服务器拥有最新的zxid值，其中的sid值最大的将赢得选举。
+
+当一个服务器接收到仲裁数量的服务器发来的投票都一样时，就表示群首选举成功，如果被选举的群首为某个服务器自己，该服务器将会开始行使群首角色，
+否则就成为一个追随者并尝试连接被选举的群首服务器。
+
+_注意，并未保证追随者必然会成功连接上被选举的群首服务器，比如，被选举的群首也许此时崩溃了。一旦连接成功，追随者和群首之间将会进行状态同步，在同步完成后，追随者才可以处理新的请求。_
+
+**查找群首**
+
+> 在ZooKeeper中对应的实现选举的Java类为QuorumPeer，其中的run方法实现了服务器的主要工作循环。
+> 当进入LOOKING状态，将会执行lookForLeader方法来进行群首的选举，该方法主要执行刚刚所讨论的协议，该方法返回前，在该方法中会将服务器状态设置为LEADING状态或FOLLOWING状态，当然还可能为OBSERVING状态。
+> 如果服务器成为群首，就会创建一个Leader对象并运行这个对象，如果服务器为追随者，就会创建一个Follower对象并运行。
+
+协议的执行过程：
+
+三个服务器分别以不同的初始投票值开始，其投票值取决于该服务器的标识符和其最新的zxid。
+每个服务器会收到另外两个服务器发送的投票信息，在第一轮之后，服务器s2和服务器s3将会改变其投票值为（1，6），
+之后服务器服务器s2和服务器s3在改变投票值之后会发送新的通知消息，
+在接收到这些新的通知消息后，每个服务器收到的仲裁数量的通知消息拥有一样的投票值，最后选举出服务器s1为群首。
+
+![群首选举过程的示例](/static/img/2018-08-06-ZooKeeper/2018-08-13-22-06-58.png)
+
+另一种情况的例子：
+
+服务器s2做出了错误判断，选举了另一个服务器s3而不是服务器s1，虽然s1的zxid值更高，但在从服务器s1向服务器s2传送消息时发生了网络故障导致长时间延迟，
+与此同时，服务器s2选择了服务器s3作为群首，最终，服务器s1和服务器s3组成了仲裁数量（quorum），并将忽略服务器s2。
+
+![消息交错导致一个服务器选择了另一个群首](/static/img/2018-08-06-ZooKeeper/2018-08-13-22-14-02.png)
+
+虽然服务器s2选择了另一个群首，但并未导致整个服务发生错误，因为服务器s3并不会以群首角色响应服务器s2的请求，
+最终服务器s2将会在等待被选择的群首s3的响应时而超时，并开始再次重试。再次尝试，意味着在这段时间内，服务器s2无法处理任何客户端的请求，这样做并不可取。
+
+如果让服务器s2在进行群首选举时多等待一会，它就能做出正确的判断。
+
+![群首选举时的长延迟](/static/img/2018-08-06-ZooKeeper/2018-08-13-22-16-34.png)
+
+很难确定服务器需要等待多长时间，在现在的实现中，默认的群首选举的实现类为FastLeaderElection，其中使用固定值200ms（常量finalizeWait），
+这个值比在当今数据中心所预计的长消息延迟（不到1毫秒到几毫秒的时间）要长得多，但与恢复时间相比还不够长。
+万一此类延迟（或任何其他延迟）时间并不是很长，一个或多个服务器最终将错误选举一个群首，从而导致该群首没有足够的追随者，那么服务器将不得不再次进行群首选举。
+错误地选举一个群首可能会导致整个恢复时间更长，因为服务器将会进行连接以及不必要的同步操作，并需要发送更多消息来进行另一轮的群首选举。
+
+**快速群首选举的快速指的是什么？**
+
+> 如果你想知道为什么称当前默认的群首选举算法为快速算法，这个问题有历史原因。
+> 最初的群首选举算法的实现采用基于拉取式的模型，一个服务器拉取投票值的间隔大概为1秒，该方法增加了恢复的延迟时间，相比较现在的实现方式，可以更加快速地进行群首选举。
+
+如果想实现一个新的群首选举的算法，需要实现一个quorum包中的Election接口。为了可以让用户自己选择群首选举的实现，代码中使用了简单的整数标识符（请查看代码中QuorumPeer.createElectionAlgorithm（）），
+另外两种可选的实现方式为LeaderElection类和AuthFastLeaderElection类，但在版本3.4.0中，这些类已经标记为弃用状态，因此，在未来的发布版本中，你可能不会再看到这些类。
+
+### Zab：状态更新和广播协议
+
+在接收到一个写请求操作后，追随者会将请求转发给群首，群首将探索性地执行该请求，并将执行结果以事务的方式对状态更新进行广播。
+一个事务中包含服务器需要执行变更的确切操作，当事务提交时，服务器就会将这些变更反馈到数据树上，其中数据树为ZooKeeper用于保存状态信息的数据结构（请参考DataTree类）。
+
+需要面对的问题便是服务器如何确认一个事务是否已经提交，由此引入了所采用的协议：Zab：ZooKeeper原子广播协议（ZooKeeper Atomic Broadcast protocol）。
+
+通过该协议提交一个事务非常简单，类似于一个两阶段提交：
+
+1. 群首向所有追随者发送一个PROPOSAL消息p。
+2. 当一个追随者接收到消息p后，会响应群首一个ACK消息，通知群首其已接受该提案（proposal）。
+3. 当收到仲裁数量的服务器发送的确认消息后（该仲裁数包括群首自己），群首就会发送消息通知追随者进行提交（COMMIT）操作。
+
+![提交提案的常规消息模式](/static/img/2018-08-06-ZooKeeper/2018-08-13-22-36-57.png)
+
+在应答提案消息之前，追随者还需要执行一些检查操作。追随者将会检查所发送的提案消息是否属于其所追随的群首，并确认群首所广播的提案消息和提交事务消失的顺序正确。
+
+Zab保障了以下几个重要属性：
+
+* 如果群首按顺序广播了事务T和事务T，那么每个服务器在提交T'事务前保证事务T已经提交完成。
+* 如果某个服务器按照事务T、事务T的顺序提交事务，所有其他服务器也必然会在提交事务T前提交事务T。
+
+第一个属性保证事务在服务器之间的传送顺序的一致，而第二个竖向地保证服务器不会跳过任何事务。
+假设事务为状态变更操作，每个状态变更操作又依赖前一个状态变更操作的结果，如果跳过事务就会导致结果的不一致性，而两阶段提交保证了事务的顺序。
+Zab在仲裁数量服务器中记录了事务，集群中仲裁数量的服务器需要在群首提交事务前对事务达成一致，而且追随者也会在硬盘中记录事务的确认信息。
+
+事务在某些服务器上可能会终结，而其他服务器上却不会，因为在写入事务到存储中时，服务器也可能发生崩溃。
+无论何时，只要仲裁条件达成并选举了一个新的群首，ZooKeeper都可以将所有服务器的状态更新到最新。
+
+但是，ZooKeeper自始至终并不总是有一个活动的群首，因为群首服务器也可能崩溃，或短时间地失去连接，此时，其他服务器需要选举一个新的群首以保证系统整体仍然可用。
+其中时间戳（epoch）的概念代表了管理权随时间的变化情况，一个时间戳表示了某个服务器行使管理权的这段时间，
+在一个时间戳内，群首会广播提案消息，并根据计数器（counter）识别每一个消息。zxid的第一个元素为时间戳信息，因此每个zxid可以很容易地与事务被创建时间戳相关联。
+
+时间戳的值在每次新群首选举发生的时候便会增加。同一个服务器成为群首后可能持有不同的时间戳信息，
+但从协议的角度出发，一个服务器行使管理权时，如果持有不同的时间戳，该服务器就会被认为是不同的群首。
+
+如果服务器s成为群首并且持有的时间戳为4，而当前已经建立的群首的时间戳为6，集群中的追随者会追随时间戳为6的群首s，处理群首在时间戳6之后的消息。
+当然，追随者在恢复阶段也会接收时间戳4到时间戳6之间的提案消息，之后才会开始处理时间戳为6之后的消息，而实际上这些提案消息是以时间戳6'的消息来发送的。
+
+在仲裁模式下，记录已接收的提案消息非常关键，这样可以确保所有的服务器最终提交了被某个或多个服务已经提交完成的事务，即使群首在此时发生了故障。
+
+实现这个广播协议所遇到最多的困难在于群首并发存在情况的出现，这种情况并不一定是脑裂场景。
+多个并发的群首可能会导致服务器提交事务的顺序发生错误，或者直接跳过了某些事务。为了阻止系统中同时出现两个服务器自认为自己是群首的情况是非常困难的，
+时间问题或消息丢失都可能导致这种情况，因此广播协议并不能基于以上假设。
+
+为了解决这个问题，Zab协议提供了以下保障：
+
+* 一个被选举的群首确保在提交完所有之前的时间戳内需要提交的事务，之后才开始广播新的事务。
+* 在任何时间点，都不会出现两个被仲裁支持的群首。
+
+为了实现第一个需求，群首并不会马上处于活动状态，直到确保仲裁数量的服务器认可这个群首新的时间戳值。
+一个时间戳的最初状态必须包含所有的之前已经提交的事务，或者某些已经被其他服务器接受，但尚未提交完成的事务。  
+这一点非常重要，在群首进行时间戳e的任何新的提案前，必须保证自时间戳开始值到时间戳e－1内的所有提案被提交。
+如果一个提案消息处于时间戳`e'<e`，在群首处理时间戳e的第一个提案消息前没有提交之前的这个提案，那么旧的提案将永远不会被提交。
+
+对于第二个需求有些棘手，因为并不能完全阻止两个群首独立地运行。
+假如一个群首l管理并广播事务，在此时，仲裁数量的服务器Q判断群首l已经退出，并开始选举了一个新的群首l'，
+假设在仲裁机构Q放弃群首l时有一个事务T正在广播，而且仲裁机构Q的一个严格的子集记录了这个事务T，在群首l'被选举完成后，
+在仲裁机构Q之外服务器也记录了这个事务T，为事务T形成一个仲裁数量，在这种情况下，事务T在群首l'被选举后会进行提交。
+这并不是个bug，Zab协议保证T作为事务的一部分被群首l'提交，确保群首l'的仲裁数量的支持者中至少有一个追随者确认了该事务T，
+其中的关键点在于群首l'和l在同一时刻并未获得足够的仲裁数量的支持者。
+
+![群首发生重叠的情况](/static/img/2018-08-06-ZooKeeper/2018-08-13-22-58-19.png)
+
+群首l为服务器s5，l'为服务器s3，仲裁机构由s1到s3组成，事务T的zxid为（1，1）。
+在收到第二个确认消息之后，服务器s5成功向服务器s4发送了提交消息来通知提交事务。
+其他服务器因追随服务器s3忽略了服务器s5的消息，注意服务器s3所了解的xzid为（1，1），因此它知道获得管理权后的事务点。
+
+Zab保证新群首l'不会缺失（1，1）。
+在新群首l'生效前，它必须学习旧的仲裁数量服务器之前接受的所有提议，并且保证这些服务器不会继续接受来自旧群首的提议。
+此时，如果群首l还能继续提交提议，比如（1，1），这条提议必须已经被一个以上的认可了新群首的仲裁数量服务器所接受。
+仲裁数量必须在一台以上的服务器之上有所重叠，这样群首l'用来提交的仲裁数量和新群首l使用的仲裁数量必定在一台以上的服务器上是一致的。
+因此，l'将（1，1）加入自身的状态并传播给其跟随者。
+
+在群首选举时，选择zxid最大的服务器作为群首。这使得ZooKeeper不需要将提议从追随者传到群首，而只需要将状态从群首传播到追随者。
+假设有一个追随者接受了一条群首没有接受的提议。群首必须确保在和其他追随者同步之前已经收到并接受了这条提议。
+但是，如果选择zxid最大的服务器，将可以完完全全跳过这一步，可以直接发送更新到追随者。
+
+在时间戳发生转换时，Zookeeper使用两种不同的方式来更新追随者来优化这个过程：
+
+* 如果追随者滞后于群首不多，群首只需要发送缺失的事务点。因为追随者按照严格的顺序接收事务点，这些缺失的事务点永远是最近的。这种更新在代码中被称之为DIFF。
+* 如果追随者滞后很久，ZooKeeper将发送在代码中被称为SNAP的完整快照。
+
+因为发送完整的快照会增大系统恢复的延时，发送缺失的事务点是更优的选择。可是当追随者滞后太远的情况下，只能选择发送完整快照。
+
+群首发送给追随者的DIFF对应于已经存在于事务日志中的提议，而SNAP对应于群首拥有的最新有效快照。
+
+**深入代码**
+
+> 大部分Zab的代码存在于Leader、LearnerHandler和Follower。
+> Leader和LearnerHandler的实例由群首服务器执行，而Follower的实例由追随者执行。
+> Leader.lead和Follower.followLeader是两个重要的方法，他们在服务器在QuorumPeer中从LOOKING转换到LEADING或者FOLLOWING时得到调用。  
+> 如果你对DIFF和SNAP的区别感兴趣，可以查看LearnerHandler.run的代码，其中包含了使用DIFF时如何决定发送哪条提议，以及关于如何持久化和发送快照的细节。
+
+### 观察者
+
+观察者和追随者之间有一些共同点。具体说来，他们提交来自群首的提议。不同于追随者的是，观察者不参与选举过程。
+他们仅仅学习经由INFORM消息提交的提议。由于群首将状态变化发送给追随者和观察者，这两种服务器也都被称为学习者。
+
+参与决定那条提议被提交的投票的服务器被称为PARTICIPANT服务器。一个PARTICIPANT服务器可以是群首也可以是追随者。而观察者则被称为OBSERVER服务器。
+
+**深入INFORM消息**
+
+> 因为观察者不参与决定提议接受与否的投票，群首不需要发送提议到观察者，群首发送给追随者的提交消息只包含zxid而不包含提议本身。
+> 因此，仅仅发送提交消息给观察者并不能使其实施提议。这是使用INFORM消息的原因。INFORM消息本质上是包含了正在被提交的提议信息的提交消息。
+> 
+> 简单来说，追随者接受两种消息而观察者只接受一种消息。追随者从一次广播中获取提议的内容，并从接下来的一条提交消息中获取zxid。
+> 相比之下，观察者只获取一条包含已提交提议的内容的INFORM消息。
+
+引入观察者的一个主要原因是提高读请求的可扩展性。通过加入多个观察者，可以在不牺牲写操作的吞吐率的前提下服务更多的读操作。
+写操作的吞吐率取决于仲裁数量的大小。如果加入更多的参与投票的服务器，将需要更大的仲裁数量，而这将减少写操作的吞吐率。
+增加观察者也不是完全没有开销的。每一个新加入的观察者将对应于每一个已提交事务点引入的一条额外消息。然而，这个开销相对于增加参与投票的服务器来说小很多。
+
+采用观察者的另外一个原因是进行跨多个数据中心的部署。
+由于数据中心之间的网络链接延时，将服务器分散于多个数据中心将明显地降低系统的速度。
+引入观察者后，更新请求能够先以高吞吐率和低延迟的方式在一个数据中心内执行，接下来再传播到异地的其他数据中心得到执行。  
+观察者并不能消除数据中心之间的网络消息，因为观察者必须转发更新请求给群首并且处理INFORM消息。
+不同的是，当参与的服务器处于同一个数据中心时，观察者保证提交更新必需的消息在数据中心内部得到交换。
+
+### 服务器的构成
+
+群首、追随者和观察者根本上都是服务器。
+在实现服务器时使用的主要抽象概念是请求处理器。请求处理器是对处理流水线上不同阶段的抽象。每一个服务器实现了一个请求处理器的序列。
+可以把一个处理器想象成添加到请求处理的一个元素。一条请求经过服务器流水线上所有处理器的处理后被称为得到完全处理。
+
+**请求处理器**
+
+> ZooKeeper代码里有一个叫RequestProcessor的接口。这个接口的主要方法是processRequest，它接受一个Request参数。
+> 在一条请求处理器的流水线上，对相邻处理器的请求的处理通常通过队列现实解耦合。
+> 当一个处理器有一条请求需要下一个处理器进行处理时，它将这条请求加入队列。
+> 然后，它将处于等待状态直到下一个处理器处理完此消息。
+
+#### 独立服务器
+
+Zookeeper中最简单的流水线是独立服务器（ZeeKeeperServer类）。
+它包含三种请求处理器：PrepRequestProcessor、SyncRequestProcessor和FinalRequestProcessor。
+
+一个独立服务器的流水线：
+
+![一个独立服务器的流水线](/static/img/2018-08-06-ZooKeeper/2018-08-14-22-06-04.png)
+
+PrepRequestProcessor接受客户端的请求并执行这个请求，处理结果则是生成一个事务。
+知道事务是执行一个操作的结果，该操作会反映到ZooKeeper的数据树上。事务信息将会以头部记录和事务记录的方式添加到Request对象中。
+同时还要注意，只有改变ZooKeeper状态的操作才会产生事务，对于读操作并不会产生任何事务。因此，对于读请求的Request对象中，事务的成员属性的引用值则为null。
+
+下一个请求处理器为SyncRequestProcessor。
+SyncRequestProcessor负责将事务持久化到磁盘上。实际上就是将事务数据按顺序追加到事务日志中，并生成快照数据。
+
+下一个处理器也是最后一个为FinalRequestProcessor。
+如果Request对象包含事务数据，该处理器将会接受对ZooKeeper数据树的修改，否则，该处理器会从数据树中读取数据并返回给客户端。
+
+#### 群首服务器
+
+切换到仲裁模式时，服务器的流水线则有一些变化。
+
+群首服务器的流水线（类LeaderZooKeeper）：
+
+![群首服务器的流水线](/static/img/2018-08-06-ZooKeeper/2018-08-14-22-12-18.png)
+
+第一个处理器同样是PrepRequestProcessor，而之后的处理器则为ProposalRequestProcessor。该处理器会准备一个提议，并将该提议发送给跟随者。
+ProposalRequestProcessor将会把所有请求都转发给CommitRequestProcessor，而且，对于写操作请求，还会将请求转发给SyncRequestProcessor处理器。
+
+SyncRequestProcessor处理器所执行的操作与独立服务器中的一样，即持久化事务到磁盘上。
+执行完之后会触发AckRequestProcessor处理器，这个处理器是一个简单请求处理器，它仅仅生成确认消息并返回给自己。
+在仲裁模式下，群首需要收到每个服务器的确认消息，也包括群首自己，而AckRequestProcessor处理器就负责这个。
+
+在ProposalRequestProcessor处理器之后的处理器为CommitRequestProcessor。CommitRequestProcessor会将收到足够多的确认消息的提议进行提交。
+实际上，确认消息是由Leader类处理的（Leader.processAck()方法），这个方法会将提交的请求加入到CommitRequestProcessor类中的一个队列中。这个队列会由请求处理器线程进行处理。
+
+下一个处理器也是最后一个为FinalRequestProcessor处理器，它的作用与独立服务器一样。FinalRequestProcessor处理更新类型的请求，并执行读取请求。
+
+在FinalRequestProcessor处理器之前还有一个简单的请求处理器，这个处理器会从提议列表中删除那些待接受的提议，这个处理器的名字叫ToBeAppliedRequestProcessor。
+待接受请求列表包括那些已经被仲裁法定人数所确认的请求，并等待被执行。群首使用这个列表与追随者之间进行同步，并将收到确认消息的请求加入到这个列表中。
+之后ToBeAppliedRequestProcessor处理器就会在FinalRequestProcessor处理器执行后删除这个列表中的元素。  
+只有更新请求才会加入到待接受请求列表中，然后由ToBeAppliedRequest-Processor处理器从该列表移除。
+ToBeAppliedRequestProcessor处理器并不会对读取请求进行任何额外的处理操作，而是由FinalRequestProcessor处理器进行操作。
+
+#### 追随者和观察者服务器
+
+追随者（FollowerRequestProcessor类），一个追随者服务器中会用到的请求处理器并不是一个单一序列的处理器，
+而且输入也有不同形式：客户端请求、提议、提交事务。
+
+追随者服务器的流水线，通过箭头来将标识追随者处理的不同路径：
+
+![追随者服务器的流水线](/static/img/2018-08-06-ZooKeeper/2018-08-14-22-22-21.png)
+
+首先从FollowerRequestProcessor处理器开始，该处理器接收并处理客户端请求。
+FollowerRequestProcessor处理器之后转发请求给CommitRequestProcessor，同时也会转发写请求到群首服务器。
+CommitRequestProcessor会直接转发读取请求到FinalRequestProcessor处理器，而且对于写请求，CommitRequestProcessor在转发给FinalRequestProcessor处理器之前会等待提交事务。
+
+当群首接收到一个新的写请求操作时，直接地或通过其他追随者服务器来生成一个提议，之后转发到追随者服务器。
+当收到一个提议，追随者服务器会发送这个提议到SyncRequestProcessor处理器，SendRequestProcessor会向群首发送确认消息。
+当群首服务器接收到足够确认消息来提交这个提议时，群首就会发送提交事务消息给追随者（同时也会发送INFORM消息给观察者服务器）。
+当接收到提交事务消息时，追随者就通过CommitRequestProcessor处理器进行处理。
+
+为了保证执行的顺序，CommitRequestProcessor处理器会在收到一个写请求处理器时暂停后续的请求处理。
+这就意味着，在一个写请求之后接收到的任何读取请求都将被阻塞，直到读取请求转给CommitRequestProcessor处理器。
+通过等待的方式，请求可以被保证按照接收的顺序来被执行。
+
+对于观察者服务器的请求流水线（ObserverZooKeeperServer类）与追随者服务器的流水线非常相似。
+但是因为观察者服务器不需要确认提议消息，因此观察者服务器并不需要发送确认消息给群首服务器，也不用持久化事务到硬盘。
+对于观察者服务器是否需要持久化事务到硬盘，以便加速观察者服务器的恢复速度，这样的讨论正在进行中，因此对于以后的ZooKeeper版本也会会有这一个功能。
+
+### 本地存储
+
+SyncRequestProcessor处理器就是用于在处理提议是写入这些日志和快照。
+
+#### 日志和磁盘的使用
+
+服务器通过事务日志来持久化事务。在接受一个提议时，一个服务器（追随者或群首服务器）就会将提议的事务持久化到事物日志中，
+该事务日志保存在服务器的本地磁盘中，而事务将会按照顺序追加其后。服务器会时不时地滚动日志，即关闭当前文件并打开一个新的文件。
+
+因为写事务日志是写请求操作的关键路径，因此ZooKeeper必须有效处理写日志问题。
+一般情况下追加文件到磁盘都会有效完成，但还有一些情况可以使ZooKeeper运行的更快，组提交和补白。
+
+组提交（GroupCommits）是指在一次磁盘写入时追加多个事务。这将使持久化多个事物只需要一次磁道寻址的开销。
+
+关于持久化事务到磁盘，还有一个重要说明：  
+现代操作系统通常会缓存脏页（Dirty Page），并将它们异步写入磁盘介质。
+然而，需要在继续之前，确保事务已经被持久化。因此需要冲刷（Flush）事务到磁盘介质。冲刷在这里就是指告诉操作系统将脏页写入磁盘，并在操作完成后返回。
+因为在SyncRequestProcessor处理器中持久化事务，所以这个处理器同时也会负责冲刷。在SyncRequestProcessor处理器中当需要冲刷事务到磁盘时，事实上是冲刷的是所有队列中的事务，以实现组提交的优化。
+如果队列中只有一个事务，这个处理器依然会执行冲刷。该处理器并不会等待更多的事务进入队列，因为这样做会增加执行操作的延时。代码参考可以查看SyncRequestProcessor.run()方法。
+
+**磁盘写缓存**
+
+> 服务器只有在强制将事务写入事务日志之后才确认对应的提议。更准确一点，服务器调用ZKDatabase的commit方法，这个方法最终会调用FileChannel.force。
+> 这样，服务器保证在确认事务之前已经将它持久化到磁盘中。不过，有一个需要注意的地方，现代的磁盘一般有一个缓存用于保存将要写到磁盘的数据。
+> 如果写缓存开启，force调用在返回后并不能保证数据已经写入介质中。实际上，它可能还在写缓存中。
+> 为了保证在FileChannel.force()方法返回后，写入的数据已经在介质上，磁盘写缓存必须关闭。不同的操作系统有不同的关闭方式。
+
+补白（padding）是指在文件中预分配磁盘存储块。这样做，对于涉及存储块分配的文件系统元数据的更新，就不会显著影响文件的顺序写入操作。
+假如需要高速向日志中追加事务，而文件中并没有原先分配存储块，那么无论何时在写入操作到达文件的结尾，文件系统都需要分配一个新存储块。
+而通过补白至少可以减少两次额外的磁盘寻址开销：一次是更新元数据；另一次是返回文件。
+
+_为了避免受到系统中其他写操作的干扰，强烈推荐你将事务日志写入到一个独立磁盘，将第二块磁盘用于操作系统文件和快照文件。_
+
+#### 快照
+
+快照是ZooKeeper数据树的拷贝副本，每一个服务器会经常以序列化整个数据树的方式来提取快照，并将这个提取的快照保存到文件中。服务器在进行快照时不需要进行协作，也不需要暂停处理请求。
+因为服务器在进行快照时还会继续处理请求，所以当快照完成时，数据树可能又发生了变化，称这样的快照是模糊的（fuzzy），因为它们不能反映出在任意给点的时间点数据树的准确状态。
+
+一个数据树中只有2个znode节点：/z和/z'。一开始，两个znode节点的数据都是1。现在有以下操作步骤：
+
+1. 开始一个快照。
+2. 序列化并将/z=1到到快照。
+3. 使/z的数据为2（事务T）。
+4. 使/z'的数据为2（事务T'）。
+5. 序列化并将/z'=2写入到快照。
+
+这个快照包含了/z=1和/z'=2。
+
+服务器会重播（replay）事务。
+每一个快照文件都会以快照_开始时最后一个被提交的事务T_作为标记（tag），将这个时间戳记为TS。
+如果服务器最后加载快照，它会重播在TS之后的所有事务日志中的事务。在快照的基础上重放后，服务器最终得到一个合理的状态。
+
+一个重要的问题，就是再次执行事务T'是否会有问题，因为这个事务在开始快照开始之后已经被接受，而结果也被快照中保存下来。
+事务是幂等的（idempotent），所以即使按照相同的顺序再次执行相同的事务，也会得到相同的结果，即便其结果已经保存到快照中。
+
+一个操作设置某个znode节点的数据为一个特定的值，这个值并不依赖于任何其他东西，无条件（unconditionly）地设置/z'的值（setData请求中的版本号为－1），重新执行操作成功，
+但因为递增了两次，所以最后以错误的版本号结束。如以下方式就会导致问题出现，假设有如下3个操作并成功执行：
+
+```text
+setData /z', 2, -1
+setData /z', 3, 2
+setData /a, 0, -1
+```
+
+第一个setData操作跟之前描述的一样，而后又加上了2个setData操作，以此来展示在重放中第二个操作因为错误的版本号而未能成功的情况。
+假设这3个操作在提交时被正确执行。此时如果服务器加载最新的快照，即该快照已包含第一个setData操作。服务器仍然会重放第一个setData操作，因为快照被一个更早的zxid所标记。
+因为重新执行了第一个setData操作。而第二个setData操作的版本号又与期望不符，那么这个操作将无法完成。而第三个setData操作可以正常完成，因为它也是无条件的。
+
+在加载完快照并重放日志后，此时服务器的状态是不正确的，因为它没有包括第二个setData请求。这个操作违反了持久性和正确性，以及请求的序列应该是无缺口（no gap）的属性。
+
+重放请求的问题可以通过把事务转换为群首服务器所生成的state delta来解决。
+当群首服务器为一个请求产生事务时，作为事务生成的一部分，包括了一些在这个请求中znode节点或它的数据变化的值（delta值），并指定一个特定的版本号。
+最后重新执行一个事务就不会导致不一致的版本号。
+
+### 服务器与会话
+
+会话（Session）是Zookeeper的一个重要的抽象。保证请求有序、临时znode节点、监事点都与会话密切相关。因此会话的跟踪机制对ZooKeeper来说也非常重要。
+
+ZooKeeper服务器的一个重要任务就是跟踪并维护这些会话。在独立模式下，单个服务器会跟踪所有的会话，而在仲裁模式下则由群首服务器来跟踪和维护。
+群首服务器和独立模式的服务器实际上运行相同的会话跟踪器（参考SessionTracker类和SessionTrackerImpl类）。
+而追随者服务器仅仅是简单地把客户端连接的会话信息转发给群首服务器（参考LearnerSessionTracker类）。
+
+为了保证会话的存活，服务器需要接收会话的心跳信息。心跳的形式可以是一个新的请求或者显式的ping消息（参考LearnerHandler.run()）。
+两种情况下，服务器通过更新会话的过期时间来触发（touch）会话活跃（参考SessionTrackerImpl.touchSession()方法）。
+在仲裁模式下，群首服务器发送一个PING消息给它的追随者们，追随者们返回自从最新一次PING消息之后的一个session列表。
+群首服务器每半个tick就会发送一个ping消息给追随者们。所以，如果一个tick被设置成2秒，那么群首服务器就会每一秒发送一个ping消息。
+
+对于管理会话的过期有两个重要的要点：
+
+一个称为过期队列（expiry queue）的数据结构（参考ExpiryQueue类），用于维护会话的过期。
+这个数据结构使用bucket来维护会话，每一个bucket对应一个某时间范围内过期的会话，群首服务器每次会让一个bucket的会话过期。
+为了确定哪一个bucket的会话过期，如果有的话，当下一个底限到来时，一个线程会检查这个expiry queue来找出要过期的bucket。
+这个线程在底限时间到来之前处于睡眠状态，当它被唤醒时，它会取出过期队列的一批session，让它们过期。当然取出的这批数据也可能是空的。
+
+为了维护这些bucket，群首服务器把时间分成一些片段，以expirationInterval为单位进行分割，并把每个会话分配到它的过期时间对应的bucket里，
+其功能就是有效地计算出一个会话的过期时间，以向上取正的方式获得具体时间间隔。
+
+更具体来说，就是对下面的表达式进行计算，当会话的过期时间更新时，根据结果来决定它属于哪一个bucket：
+
+```text
+(expirationTime / expirationInterval + 1) * expirationInterval
+```
+
+比如expirationInterval为2，会话的超时时间为10。那么这个会话分配到bucket为12（（10/2+1）*2的结果）。
+
+注意当触发（touch）这个会话时expirationTime会增加，所以随后需要根据之后的计算会话移动到其他的bucket中。
+
+使用bucket的模式来管理的一个主要原因是为了减少让会话过期这项工作的系统开销。
+在一个ZooKeeper的部署环境中，可能其客户端就有数千个，因此也就有数千个会话。在这种场景下要细粒度地检查会话过期是不合适的。
+如果expirationInterval短的话，那么ZooKeeper就会以这种细粒度的方式完成检查。目前expirationInterval是一个tick，通常以秒为单位。
+
+### 服务器与监视点
+
+监视点是由读取操作所设置的一次性触发器，每个监视点由一个特定操作来触发。为了在服务端管理监视点，ZooKeeper的服务端实现了监视点管理器（watch manager）。
+一个WatchManager类的实例负责管理当前已被注册的监视点列表，并负责触发它们。
+所有类型的服务器（包括独立服务器，群首服务器，追随者服务器和观察者服务器）都使用同样的方式处理监视点。
+
+DataTree类中持有一个监视点管理器来负责子节点监控和数据的监控，对于这两类监控，当处理一个设置监视点的读请求时，该类就会把这个监视点加入manager的监视点列表。
+类似的，当处理一个事务时，该类也会查找是否需要触发相应的监视点。如果发现有监视点需要触发，该类就会调用manager的触发方法。
+添加一个监视点和触发一个监视点都会以一个read请求或者FinalRequestProcessor类的一个事务开始。
+
+在服务端触发了一个监视点，最终会传播到客户端。负责处理传播的为服务端的cnxn对象（参见ServerCnxn类），此对象表示客户端和服务端的连接并实现了Watcher接口。
+Watch.process方法序列化了监视点事件为一定格式，以便用于网络传送。ZooKeeper客户端接收序列化的监视点事件，并将其反序列化为监视点事件的对象，并传递给应用程序。
+
+监视点只会保存在内存，而不会持久化到硬盘。当客户端与服务端的连接断开时，它的所有监视点会从内存中清除。
+因为客户端库也会维护一份监视点的数据，在重连之后监视点数据会再次被同步到服务端。
+
+### 客户端
+
+在客户端库中有2个主要的类：ZooKeeper和ClientCnxn。
+
+ZooKeeper类实现了大部分API，写客户端应用程序时必须实例化这个类来建立一个会话。
+一旦建立起一个会话，ZooKeeper就会使用一个会话标识符来关联这个会话。这个会话标识符实际上是由服务端所生成的（参考SessionTrackerImpl类）。
+
+ClientCnxn类管理连接到server的Socket连接。
+该类维护了一个可连接的ZooKeeper的服务器列表，并当连接断掉的时候无缝地切换到其他的服务器。
+当重连到一个其他的服务器时会使用同一个会话（如果没有过期的话），客户端也会重置所有的监视点到刚连接的服务器上（参考ClientCnxn.SendThread.primeConnection()）。
+重置默认是开启的，可以通过设置disableAutoWatchReset来禁用。
+
+### 序列化
+
+对于网络传输和磁盘保存的序列化消息和事务，ZooKeeper使用了Hadoop中的Jute来做序列化。
+如今，该库以独立包的方式被引入，在ZooKeeper代码库中，org.apache.jute就是Jute库
+（ZooKeeper的开发团队早就讨论过要替换Jude，但至今没找到合适的方案，它工作得很好，还没有必要替换它）。
+
+### 总结
+
+群首竞选机制是可用性的关键因素，没有这个机制，ZooKeeper套件将无法保持可靠性。
+拥有群首是必要但非充分条件，ZooKeeper还需要Zab协议来传播状态的更新等，即使某些服务器可能发生崩溃，也能保证状态的一致性。
+
+了多种服务器类型：独立服务器、群首服务器、追随者服务器和观察者服务器。这些服务器之间因运转的机制及执行的协议的不同而不同。
+在不同的部署场景中，各个服务器可以发挥不同的作用，比如增加观察者服务器可以提供更高的读吞吐量，而且还不会影响写吞吐量。
+不过，增加观察者服务器并不会增加整个系统的高可用性。
+
+在ZooKeeper内部，实现了一系列机制和数据结构。虽然提供了代码的相关线索，但并没有提供源代码的详尽视图。
+强烈建议读者自行下载一份源代码，以本章所提供的线索为开端，独立分析和思考。
+
 ## 运行ZooKeeper
+
+为了保证Zookeeper服务的功能正常，必须保证配置正确。
+ZooKeeper作为分布式计算的基础建立在需要条件处理的情况下，所有的Zookeeper投票服务器必须拥有相同的配置，配置错误或不一致是运营过程中最主要的问题。
+
+### 配置ZooKeeper服务器
+
+ZooKeeper服务器在启动时从一个名为zoo.cfg的配置文件读取所有选项，多个服务器如果角色相似，同时基本配置信息一样，就可以共享一个文件。
+
+data目录下的myid文件用于区分各个服务器，对每个服务器来说，data目录必须是唯一的，因此这个目录可以更加方便地保存一些差异化文件。
+服务器ID将myid文件作为一个索引引入到配置文件中，一个特定的ZooKeeper服务器可以知道如何配置自己参数。
+当然，如果服务器具有不同的配置参数（例如，事务日志保存在不同的地方），每个服务器就需要使用自己唯一的配置文件。
+
+配置参数常常通过配置文件的方式进行设置，通过列表方式列出了这些参数。
+很多参数也可以通过Java的系统属性传递，其形式通常为zookeeper.propertyName，在启动服务器时，通过-D选项设置这些属性。
+不过，系统属性所对应的一个特定参数对服务来说是插入的配置，配置文件中的配置参数优先于系统属性中的配置。
+
+#### 基本配置
+
+某些配置参数并没有默认值，所以每个部署应用中必须配置：
+
+* clientPort
+	* 客户端所连接的服务器所监听的TCP端口，默认情况下，服务端会监听在所有的网络连接接口的这个端口上，除非设置了clientPortAddress参数。客户端端口可以设置为任何值，不同的服务器也可以监听在不同的端口上。默认端口号为2181。
+* dataDir和dataLogDir
+	* dataDir用于配置内存数据库保存的模糊快照的目录，如果某个服务器为集群中的一台，id文件也保存在该目录下。
+	* dataDir并不需要配置到一个专用存储设备上，快照将会以后台线程的方式写入，且并不会锁定数据库，而且快照的写入方式并不是同步方式，直到写完整快照为止。
+	* 事务日志对该目录所处的存储设备上的其他活动更加敏感，服务端会尝试进行顺序写入事务日志，因为服务端在确认一个事务前必须将数据同步到存储中，该设备的其他活动（尤其是快照的写入）可能导致同步时磁盘过于忙碌，从而影响写入的吞吐能力。因此，最佳实践是使用专用的日志存储设备，将dataLogDir的目录配置指向该设备。
+* tickTime
+	* tick的时长单位为毫秒，tick为ZooKeeper使用的基本的时间度量单位，该值还决定了会话超时的存储器大小。
+	* Zookeeper集群中使用的超时时间单位通过tickTime指定，也就说，实际上tickTime设置了超时时间的下限值，因为最小的超时时间为一个tick时间，客户端最小会话超时时间为两个tick时间。
+	* tickTime的默认值为3000毫秒，更低的tickTime值可以更快地发现超时问题，但也会导致更高的网络流量（心跳消息）和更高CPU使用率（会话存储器的处理）。
+
+#### 存储配置
+
+了一些更高级的配置参数，这些参数不仅适用于独立模式的服务，也适用于集群模式下的配置，这些参数不设置的话并不会影响ZooKeeper的功能，但有些参数（例如dataLogDir）最好还是配置：
+
+* preAllocSize
+	* 用于设置预分配的事务日志文件（zookeeper.preAllocSize）的大小值，以KB为单位。
+	* 当写入事务日志文件时，服务端每次会分配preAllocSize值的KB的存储大小，通过这种方式可以分摊文件系统将磁盘分配存储空间和更新元数据的开销，更重要的是，该方式也减少了文件寻址操作的次数。
+	* 默认情况下preAllocSize的值为64MB，缩小该值的一个原因是事务日志永远不会达到这么大，因为每次快照后都会重新启动一个新的事务日志，如果每次快照之间的日志数量很小，而且每个事务本身也很小，64MB的默认值显然就太大了。
+		* 例如，如果每1000个事务进行一次快照，每个事务的平均大小为100字节，那么100KB的preAllocSize值则更加合适。
+		* 默认的preAllocSize值的设置适用于默认的snapCount值和平均事务超过512字节的情况。
+* snapCount
+	* 指定每次快照之间的事务数（zookeeper.snapCount）。
+	* 当Zookeeper服务器重启后需要恢复其状态，恢复时两大时间因素分别是为恢复状态而读取快照的时间以及快照启动后所发生的事务的执行时间。执行快照可以减少读入快照文件后需要应用的事务数量，但是进行快照时也会影响服务器性能，即便是通过后台线程的方式进行写入操作。
+	* snapCount的默认值为100000，因为进行快照时会影响性能，所以集群中所有服务器最好不要在同一时间进行快照操作，只要仲裁服务器不会一同进行快照，处理时间就不会受影响，因此每次快照中实际的事务数为一个接近snapCount值的随机数。
+	* _注意，如果snapCount数已经达到，但前一个快照正在进行中，新的快照将不会开始，服务器也将继续等到下一个snapCount数量的事务后再开启一个新的快照。_
+* autopurge.snapRetainCount
+	* 当进行清理数据操作时，需要保留在快照数量和对应的事务日志文件数量。
+	* ZooKeeper将会定期对快照和事务日志进行垃圾回收操作，autopurge.snapRetainCount值指定了垃圾回收时需要保留的快照数，显然，并不是所有的快照都可以被删除，因为那样就不可能进行服务器的恢复操作。autopurge.snapRetainCount的最小值为3，也是默认值的大小。
+* autopurge.purgeInterval
+	* 对快照和日志进行垃圾回收（清理）操作的时间间隔的小时数。如果设置为一个非0的数字，autopurge.purgeInterval指定了垃圾回收周期的时间间隔，如果设置为0，默认情况下，垃圾回收不会自动执行，而需要通过ZooKeeper发行包中的zkCleanup.sh脚本手动运行。
+* fsync.warningthresholdms
+	* 触发警告的存储同步时间阀值（fsync.warningthresholdms），以毫秒为单位。
+	* ZooKeeper服务器在应答变化消息前会同步变化情况到存储中。如果同步系统调用消耗了太长时间，系统性能就会受到严重影响，服务器会跟踪同步调用的持续时间，如果超过fsync.warningthresholdms只就会产生一个警告消息。默认情况下，该值为1000毫秒。
+* weight.x=n
+	* 该选项常常以一组参数进行配置，该选项指定组成一个仲裁机构的某个服务器的权重为n，其权重n值指示了该服务器在进行投票时的权重值。在ZooKeeper中一些部件需要投票值，比如群首选举中和原子广播协议中。默认情况下，一个服务器的权重值为1，如果定义的一组服务器没有指定权重，所有服务器的权重值将默认分配为1。
+* traceFile
+	* 持续跟踪ZooKeeper的操作，并将操作记录到跟踪日志中，跟踪日志的文件名为traceFile.year.month.day。除非设置了该选项（requestTraceFile），否则跟踪功能将不会启用。
+	* 该选项用来提供ZooKeeper所进行的操作的详细视图。不过，要想记录这些日志，ZooKeeper服务器必须序列化操作，并将操作写入磁盘，这将争用CPU和磁盘的时间。如果你使用了该选项，请确保不要将跟踪文件放到日志文件的存储设备中。还需要知道，跟踪选项还可能影响系统运行，甚至可能会很难重现跟踪选项关闭时发生的问题。另外还有个有趣的问题，traceFile选项的Java系统属性配置中不含有zookeeper前缀，而且系统属性的名称也与配置选项名称不同，这一点请小心。
+
+#### 网络配置
+
+配置参数可以限制服务器和客户端之间的通信，以及超时选项：
+
+* globalOutstandingLimit
+	* ZooKeeper中待处理请求的最大值（zookeeper.globalOutstandingLimit）。
+	* ZooKeeper客户端提交请求比ZooKeeper服务端处理请求要快很多，服务端将会对接收到的请求队列化，最终（也许几秒之内）可能导致服务端的内存溢出。为了防止发生这个问题，ZooKeeper服务端中如果待处理请求达到globalOutstandingLimit值就会限制客户端的请求。
+	* 但是globalOutstandingLimit值并不是硬限制，因为每个客户端至少有一个待处理请求，否则会导致客户端超时，因此，当达到globalOutstandingLimit值后，服务端还会继续接收客户端连接中的请求，条件是这个客户端在服务器中没有任何待处理的请求。
+	* 为了确定某个服务器的全局限制值，只是简单地将该参数值除以服务器的数量，目前还没有更智能的方式去实现全局待处理操作数量的计算，并强制采用该参数所指定的限制值，因此，该限制值为待处理请求的上限值，事实上，服务器之间完美的负载均衡解决方案还无法实现，所以某些服务器运行得稍缓慢一点，或者处于更高的负载中，即使最终没有达到全局限制值也可能被限制住吞吐量。
+	* 该参数的默认值为1000个请求，你可能并不会修改该参数值，但如果你有很多客户端发送大数据包请求可能就需要降低这个参数值，但在实践中还未遇到需要修改这个参数的情况。
+* maxClientCnxns
+	* 允许每个IP地址的并发socket连接的最大数量。Zookeeper通过流量控制和限制值来避免过载情况的发生。一个连接的建立所使用的资源远远高于正常操作请求所使用的资源。曾看到过某些错误的客户端每秒创建很多ZooKeeper连接，最后导致拒绝服务（DoS），为了解决这个问题，添加了这个选项，通过设置该值，可以在某个IP地址已经有maxClientCnxns个连接时拒绝该IP地址新的连接。该选项的默认值为60个并发连接。
+	* 注意，每个服务器维护着这个连接的数量，如果有一个5个服务器的集群，并且使用默认的并发连接数60，一个欺诈性的客户端会随机连接到这5个不同的服务器，正常情况下，该客户端几乎可以从单个IP地址上建立300个连接，之后才会触发某个服务器的限制。
+* clientPortAddress
+	* 限制客户端连接到指定的接收信息的地址上。默认情况下，一个ZooKeeper服务器会监听在所有的网络接口地址上等待客户端的连接。
+	* 有些服务器配置了多个网络接口，其中一个网络接口用于内网通信，另一个网络接口用于公网通信，如果你并不希望服务器在公网接口接受客户端的连接，只需要设置clientPortAddress选项为内网接口的地址。
+* minSessionTimeout
+	* 最小会话超时时间，单位为毫秒。当客户端建立一个连接后就会请求一个明确的超时值，而客户端实际获得的超时值不会低于minSessionTimeout的值。
+	* ZooKeeper开发人员很想立刻且准确地检测出客户端故障发生的情况，遗憾的是，系统不可能实时处理这种情况，而是通过心跳和超时来处理。超时取决于ZooKeeper客户端与服务器之间的响应能力，更重要的是两者之间的网络延时和可靠性。超时时间允许的最小值为客户端与服务器之间网络的环回时间，但偶尔还是可能发生丢包现象，当这种情况发生时，因为重传超时导致接收响应时间的增加，并会导致接收重发包的延时。
+	* minSessionTimeout的默认值为tickTime值的两倍。配置该参数值过低可能会导致错误的客户端故障检测，配置该参数值过高会延迟客户端故障的检测时间。
+* maxSessionTimeout
+	* 会话的最大超时时间值，单位为毫秒。当客户端建立一个连接后就会请求一个明确的超时值，而客户端实际获得的超时值不会高于maxSessionTimeout的值。
+	* 虽然该参数并不会影响系统的性能，但却可以限制一个客户端消耗系统资源的时间，默认情况下maxSessionTimeout的时间为tickTime的20倍。
+
+#### 集群配置
+
+当以一个集群来构建ZooKeeper服务时，需要为每台服务器配置正确的时间和服务器列表信息，以便服务器之间可以互相建立连接并进行故障监测，在ZooKeeper的集群中，这些参数的配置必须一致：
+
+* initLimit
+	* 对于追随者最初连接到群首时的超时值，单位为tick值的倍数。
+	* 当某个追随者最初与群首建立连接时，它们之间会传输相当多的数据，尤其是追随者落后整体很多时。配置initLimit参数值取决于群首与追随者之间的网络传输速度情况，以及传输的数据量大小，如果ZooKeeper中保存的数据量特别大（即存在大量的znode节点或大数据集）或者网络非常缓慢，就需要增大initLimit值，因为该值取决于环境问题，所有没有默认值。你需要为该参数配置适当的值，以便可以传输所期望的最大快照，也许有时你需要多次传输，你可以配置initLimit值为两倍你所期望的值。如果配置initLimit值过高，那么首次连接到故障的服务器就会消耗更多的时间，同时还会消耗更多的恢复时间，因此最好在你的网络中进行追随者与群首之间的网络基准测试，以你规划所使用的数据量来测试出你所期望的时间。
+* syncLimit
+	* 对于追随者与群首进行sync操作时的超时值，单位为tick值的倍数。
+	* 追随者总是会稍稍落后于群首，但是如果因为服务器负载或网络问题，就会导致追随者落后群首太多，甚至需要放弃该追随者，如果群首与追随者无法进行sync操作，而且超过了syncLimit的tick时间，就会放弃该追随者。与initLimit参数类似，syncLimit也没有默认值，与initLimit不同的是，syncLimit并不依赖于ZooKeeper中保存的数据量大小，而是依赖于网络的延迟和吞吐量。在高延迟网络环境中，发送数据和接收响应包会耗费更多时间，此时就需要调高syncLimit值。即使在相对低延迟的网络中，如果某些相对较大的事务传输给追随者需要一定的时间，你也需要提高syncLimit值。
+* leaderServes
+	* 配置值为“yes”或“no”标志，指示群首服务器是否为客户端提供服务（zookeeper.leaderServes）。
+	* 担任群首的ZooKeeper服务器需要做很多工作，它需要与所有追随者进行通信并会执行所有的变更操作，也就意味着群首的负载会比追随者的负载高，如果群首过载，整个系统可能都会受到影响。
+	* 该标志位如果设置为“no”就可以使群首除去服务客户端连接的负担，使群首将所有资源用于处理追随者发送给它的变更操作请求，这样可以提高系统状态变更操作的吞吐能力。换句话说，如果群首不处理任何与其直连的客户端连接，追随者就会有更多的客户端，因为连接到群首的客户端将会分散到追随者上，尤其注意在集群中服务器数量比较少的时候。默认情况下，leaderServes的值为“yes”。
+* server.x=[hostname]:n:n[:observer]
+	* 服务器x的配置参数。
+	* ZooKeeper服务器需要知道它们如何通信，配置文件中该形式的配置项就指定了服务器x的配置信息，其中x为服务器的ID值（一个整数）。当一个服务器启动后，就会读取data目录下myid文件中的值，之后服务器就会使用这个值作为查找server.x项，通过该项中的数据配置服务器自己。如果需要连接到另一个服务器y，就会使用server.y项的配置信息来与这个服务器进行通信。
+	* 其中hostname为服务器在网络n中的名称，同时后面跟了两个TCP的端口号，第一个端口用于事务的发送，第二个端口用于群首选举，典型的端口号配置为2888：3888。如果最后一个字段标记了observer属性，服务器就会进入观察者模式。
+	* 注意，所有的服务器使用相同的server.x配置信息，这一点非常重要，否则的话，因服务器之间可能无法正确建立连接而导致整个集群无法正常工作。
+* cnxTimeout
+	* 在群首选举打开一个新的连接的超时值（zookeeper.cnxTimeout）。
+	* ZooKeeper服务器在进行群首选举时互相之间会建立连接，该选项值确定了一个服务器在进行重试前会等待连接成功建立的时间为多久。默认的超时时间为5秒，该值足够大，也许你并不需要修改。
+* electionAlg
+	* 选举算法的配置选项。
+	* 为了整个配置的完整性，也列入了该选项。该选项用于选择不同的群首选举算法，但除了默认的配置外，其他算法都已经弃用了，所以你并不需要配置这个选项。
+
+#### 认证和授权选项
+
+zookeeper.DigestAuthenticationProvider.superDigest（只适用于Java系统属性）该系统属性指定了“super”用户的密码摘要信息（该功能默认不启用），以super用户认证的客户端会跳过所有ACL检查。该系统属性的值形式为super：encoded_digest。
+
+为了生成加密的摘要，可以使用org.apache.zookeeper.server.auth.DigestAuthenticationProvider工具，使用方式如下：
+
+```shell
+java -cp $ZK_CLASSPATH org.apache.zookeeper.server.auth.DigestAuthenticationProvider super:asdf
+```
+
+通过命令行工具生成了一个asdf这个密码的加密摘要信息：
+
+```text
+super:asdf->super:T+4Qoey4ZZ8Fnni1Yl2GZtbH2W4=
+```
+
+
+为了在服务器启动中使用该摘要，可以通过以下命令实现：
+
+```shell
+export SERVER_JVMFLAGS
+SERVER_JVMFLAGS=-Dzookeeper.DigestAuthenticationProvider.superDigest=super:T+4Qoey4ZZ8Fnni1Yl2GZtbH2W4=
+./bin/zkServer.sh start
+```
+
+现在，当通过zkCli进行连接时，可以通过以下方式：
+
+```shell
+[zk: localhost:2181(CONNECTED) 0] addauth digest super:asdf
+[zk: localhost:2181(CONNECTED) 1]
+```
+
+此时，你已经以super用户的身份被认证，现在不会被任何ACL所限制。
+
+**不安全连接**
+
+> ZooKeeper客户端与服务器之间的连接并未加密，因此不要在不可信的链接中使用super的密码，使用super密码的安全方式是在ZooKeeper服务器本机上使用super密码运行客户端。
+
+#### 非安全配置
+
+这些配置选项只用于非常特殊情况。
+
+* forceSync
+	* 通过“yes”或“no”选项可以控制是否将数据信息同步到存储设备上（zookeeper.forceSync）。
+	* 默认情况下，forceSync配置yes时，事务只有在同步到存储设备后才会被应答，同步系统调用的消耗很大，而且也是事务处理中最大的延迟原因之一。如果forceSync配置为no，事务会在写入到操作系统后就立刻被应答，在将事务写入磁盘之前，这些事务常常缓存于内存之中，配置forceSync为no可以提高性能，但代价是服务器崩溃或停电故障时可恢复性。
+* jute.maxbuffer（仅适用于Java系统属性）
+	* 一个请求或响应的最大值，以字节为单位。该选项只能通过Java的系统属性进行配置，并且选项名称没有zookeeper前缀。
+	* ZooKeeper中内置了一些健康检查，其中之一就是对可传输的znode节点数据的大小的检查，ZooKeeper被设计用于保存配置数据，配置数据一般由少量的元数据信息（大约几百字节）所组成。默认情况下，一个请求或响应消息如果大于1M字节，就会被系统拒绝，你可以使用该属性来修改健康检查值，调小检查值，或者你真的确认要调大检查值。
+* skipACL
+	* 跳过所有ACL检查（zookeeper.skipACL）。
+	* 处理ACL检查会有一定的开销，通过该选项可以关闭ACL检查功能，这样做可以提高性能，但也会将数据完全暴露给任何一个可以连接到服务器的客户端。
+* readonlymode.enabled（仅适用于Java系统属性）
+	* 将该配置设置为true可以启用服务器只读模式功能，客户端可以以只读模式的请求连接服务器并读取信息（可能是已过期的信息），即使该服务器在仲裁中因分区问题而被分隔。为了启用只读模式，客户端需要配置canBeReadOnly为true。
+	* 该功能可以使客户端即使在网络分区发生时也能读取（不能写入）ZooKeeper的状态，在这种情况下，被分区而分离的客户端依然可以继续取得进展，并不需要等待分区问题被修复。特别注意，一个与集群中其他服务器失去连接ZooKeeper也许会终止以只读模式提供过期的数据服务。
+
+**修改健康检查值**
+
+> 虽然通过jute.maxbuffer指定的限制值可以进行大块数据的写入操作，但获取一个znode节点的子节点，而同时该节点有很多子节点时就会出现问题。
+> 如果一个znode节点含有几十万个子节点，每个子节点的名字长度平均为10个字符，在试着返回子节点列表时就会命中默认最大缓冲大小检查，此时就会导致连接被重置。
+
+#### 日志
+
+ZooKeeper采用SLF4J库（JAVA简易日志门面）作为日志的抽象层，默认使用Log4J进行实际的日志记录功能。
+
+日志记录功能会影响进程的性能，特别是开启了DEBUG级别时，与此同时，DEBUG级别提供了大量有价值的信息，可以帮诊断问题。
+有一个方法可以平衡性能和开销问题，详细日志为你提供了更多细节信息，因此可以配置appender的日志级别为DEBUG，而rootLogger的级别为WARN，
+当服务器运行时，如果你需要诊断某个问题，你可以通过JMX动态调整rootLogger的级别为INFO或DEBUG，更详细地检查系统的活动情况。
+
+#### 专用资源
+
+当你考虑在服务器上运行ZooKeeper如何配置时，服务器本身的配置也很重要。
+为了达到你所期望的性能，可以考虑使用专用的日志存储设备，就是说日志目录处于专属的硬盘上，没有其他进程使用该硬盘资源，甚至周期性的模糊快照也不会使用该硬盘。
+
+ZooKeeper是提供可靠性保证的关键组件，还应该部署ZooKeeper独立运行，防止资源竞争。
+
+### 配置ZooKeeper集群
+
+关于仲裁（quorum）的概念，该概念深深贯穿于ZooKeeper的设计之中。
+在复制模式下处理请求时以及选举群首时都与仲裁的概念有关，如果ZooKeeper集群中存在法定人数的服务器已经启动，整个集群就可以继续工作。
+
+与之相关的一个概念是观察者（observer）。
+观察者与集群一同工作，接收客户端请求并处理服务器上的状态变更，但是群首并不会等待观察者处理请求的响应包，同时集群在进行群首选举时也不会考虑观察者的通知消息。
+
+#### 多数原则
+
+当集群中拥有足够的ZooKeeper服务器来处理请求时，称这组服务器的集合为仲裁法定人数，不希望有两组不相交的服务器集合同时处理请求，否则就会进入脑裂模式中。
+
+可以避免脑裂问题，通过定义仲裁法定人数的数量至少为所有服务器中的多数。
+（注意，集群服务器数量的一般并不会构成多数原则，至少需要大于所有服务器一半数量来构成多数原则）。
+
+当配置多个服务器来组成ZooKeeper集群时，默认使用多数原则作为仲裁法定人数。
+ZooKeeper会自动监测是否运行于复制模式，从配置文件读取时确定是否拥有多个服务器的配置信息，并默认使用多数原则的仲裁法定人数。
+
+#### 法定人数的可配置性
+
+关于法定人数的一个重要属性是，如果一个法定人数解散了，集群中另一个法定人数形成，这两个法定人数中至少有一个服务器必须交集。多数原则的法定人数无疑满足了这一交集的属性。
+一般，法定人数并未限制必须满足多数原则，ZooKeeper也允许灵活的法定人数配置，这种特殊方案就是对服务器进行分组配置时，
+会将服务器分组成不相交的集合并分配服务器的权重，通过这种方案来组成法定人数，需要使多数组中的服务器形成多数投票原则。
+
+有三个组，每个组中有三个服务器，每个服务器的权重值为1，在这种情况下，需要四个服务器来组成法定人数：
+
+某个组中的两个服务器，另一组中的两台服务器。
+
+总之，其数学逻辑归结为：
+
+如果有G个组，所需要的服务器为一个G'组的服务器，满足|G'|>|G|/2，同时对于G组中的服务器集合g，
+还需要集合g’中的集合g满足集合g的所有权重值之和W'不小于集合g的权重值之和（如：W‘>W/2）。
+
+一半以上的集合中，每个集合内部单个集合的条件也满足。
+
+通过以下配置选项可以创建一个组：
+
+* group.x=n[:n]
+	* 启用法定人数的分层构建方式。x为组的标识符，等号后面的数字对应服务器的标识符，赋值操作符右侧为冒号分隔的服务器标识符的列表。
+	* 注意，组与组之间不能存在交集，所有组的并集组成了整个ZooKeeper集群，换句话说，集群中的每个服务器必须在某个组中被列出一次。
+
+9个服务器被分为3组的情况：
+
+```text
+group.1=1:2:3
+group.2=4:5:6
+group.3=7:8:9
+```
+
+每个服务器的权重都一样，为了构成法定人数，需要两个组及这两个组中各取两个服务器，也就是总共4个服务器。
+但根据法定人数多数原则，至少需要5个服务器来构成一个法定人数。
+
+注意，不能从任何子集形成法定人数的4个服务器，不过，一个组全部服务器加上另一个组的一个单独的服务器并不能构成法定人数。
+
+当在跨多个数据中心部署ZooKeeper服务时，这种配置方式有很多优点。
+例如，一个组可能表示运行于不同数据中心的一组服务器，即使这个数据中心崩溃，ZooKeeper服务也可以继续提供服务。
+
+在每个数据中心中分配三个服务器，并且将这些服务器均放到同一组中：
+
+```text
+group.1=1:2:3:4:5:6
+```
+
+因为所有的服务器默认情况下权重值都一样，因此只要6个服务器中有4个服务器有效时就可以构成法定人数的服务器。
+当然，这也意味着如果某个数据中心失效，就不能形成法定人数，即使另一个数据中心的三个服务器均有效。
+
+为了给服务器分配不同的权重值，可以通过以下选型进行配置：
+
+* weight.x=n
+	* 与group选项一起配合使用，通过该选项可以为某个服务器形成法定人数时分配一个权重值为n。
+	* 其值n为服务器投票时的权重，ZooKeeper中群首选举和原子广播协议中均需要投票。默认情况下，服务器的权重值为1，如果配置文件中定义了组的选项，但未指定权重值，所有的服务器均会被分配权重值1。
+
+某个数据中心只要其所有服务器均可用，即使在其他数据中心失效时，这个数据中心也可以提供服务，
+暂且称该数据中心为D1，此时，可以为D1中的某个服务器分配更高权重值，以便可以更容易与其他服务器组成法定人数。
+
+D1中有服务器1、2和3，通过以下方式为服务器1分配更高的权重值：
+
+```text
+weight.1=2
+```
+
+通过以上配置，就有了7个投票，在构成法定人数时，只需要4个投票。
+如果没有weight.1=2参数，任何服务器都需要与其他三个服务器来构成法定人数，但有了这个参数配置，服务器1与两个服务器就可以构成法定人数。
+因此，只要D1可用，即使其他数据中心发生故障，服务器1、2和3也能构成法定人数并继续提供服务。
+
+#### 观察者
+
+观察者（observer）为ZooKeeper服务器中不参与投票但保障状态更新顺序的特殊服务器。配置ZooKeeper集群使用观察者，需要在观察者服务器的配置文件中添加以下行：
+
+```text
+peerType=observer
+```
+
+同时，还需要在所有服务器的配置文件中添加该服务器的：observer定义。
+
+```text
+server.1:localhost:2181:3181:observer
+```
+
+### 重配置
+
+含有3个服务器的集群将要扩展到5个：
+
+![含有3个服务器的集群将要扩展到5个](/static/img/2018-08-06-ZooKeeper/2018-08-15-23-31-14.png)
+
+将所有服务停止，添加服务器D和E到集群中。如果服务器A和B的启动慢一些，比如服务器A和B比其他三个服务器的启动晚一些。
+
+5个服务器的集群的法定人数为3：
+
+![5个服务器的集群的法定人数为3](/static/img/2018-08-06-ZooKeeper/2018-08-15-23-32-24.png)
+
+5个服务器的集群丢失数据：
+
+![5个服务器的集群丢失数据](/static/img/2018-08-06-ZooKeeper/2018-08-15-23-32-47.png)
+
+为了避免这个问题，ZooKeeper提供了重配置操作，这意味着运维人员并不需要手工进行重配置操作而导致状态信息的破坏，而且，也不需要停止任何
+服务。重配置不仅可以让改变集群成员配置，还可以修改网络参数配置，因为ZooKeeper中配置信息的变化，需要将重配置参数与静态的配置文件分离，单独保存为一个配置文件并自动更新该
+文件。
+配额管理的跟踪功能通过/zookeeper子树完成，所以应用程序不能在这个子树中存储自己的数据，这个子树只应该保留给ZooKeeper使
+用，而/zookeeper/quota节点就是ZooKeeper管理配额的节点。为了对应
+用程序/application/superApp创建一个配额项，需要
+在/application/superApp节点下创建两个子节点zookeeper_limits和
+zookeeper_stats。dynamicConfigFile参数和链接这两个配置文件。
+
+配额管理的跟踪功能通过/zookeeper子树完成，所以应用程序不能在这个子树中存储自己的数据，这个子树只应该保留给ZooKeeper使
+用，而/zookeeper/quota节点就是ZooKeeper管理配额的节点。为了对应
+用程序/application/superApp创建一个配额项，需要
+在/application/superApp节点下创建两个子节点zookeeper_limits和
+zookeeper_stats。
+**我是否可以使用动态配置选项？**
+
+> 该功能已经在Apache仓库的主干分支中被添加，主干的目标版本号为3.5.0（书时未发布版本）。
+
+```conf
+# 普通配置
+tickTime=2000
+initLimit=10
+syncLimit=5
+dataDir=./data
+dataLogDir=./txnlog
+clientPort=2182
+server.1=127.0.0.1:2222:2223
+server.2=127.0.0.1:3333:3334
+server.3=127.0.0.1:4444:4445
+```
+
+```conf
+# dynamic
+tickTime=2000initLimit=10
+syncLimit=5
+dataDir=./data
+dataLogDir=./txnlog
+dynamicConfigFile=./dyn.cfg
+```
+
+```conf
+# dyn.cfg
+# server.id=host:n:n[:role];[client_address:]client_port
+# role选项必须为participant或observe，默认为participant
+server.1=127.0.0.1:2222:2223:participant;2181
+server.2=127.0.0.1:3333:3334:participant;2182
+server.3=127.0.0.1:4444:4445:participant;2183
+```
+
+使用重配置之前必须先创建这些文件，一旦这些文件就绪，就可以通过reconfig操作来重新配置一个集群，该操作可以增量或全量（整体）地进行更新操作。
+
+增量的重配置操作将会形成两个列表：
+
+待删除的服务器列表，待添加的服务器项的列表。
+
+待删除的服务器列表仅仅是一个逗号分隔服务器ID列表，待添加的服务器项列表为逗号分隔的服务器项列表，每个服务器项的形式为动态配置文件中所定义的形式。
+
+```shell
+reconfig -remove 2,3 -add \
+  server.4=127.0.0.1:5555:5556:participant;2184,\
+  server.5=127.0.0.1:6666:6667:participant;2185
+```
+
+该命令将会删除服务器2和3，添加服务器4和5。
+
+该操作成功执行还需要满足某些条件：
+
+* 首先，与其他ZooKeeper操作一样，原配置中法定人数必须处于活动状态；
+* 其次，新的配置文件中构成的法定人数也必须处于活动状态。
+
+_注意：不允许以独立模式运行重配置操作，只有在仲裁模式时才可以使用重配置功能。_
+
+ZooKeeper一次允许一个配置的变更操作请求，当然，配置操作会非常快地被处理，而且重新配置也很少发生，所以并发的重配置操作应该不是什么问题。
+
+还可以使用-file参数来指定一个新的成员配置文件来进行一次全量更新。
+
+例如：reconfig -file newconf命令会产生如上面命令一样的增量操作结果，newconf文件为：
+
+```conf
+server.1=127.0.0.1:2222:2223:participant;2181
+server.4=127.0.0.1:5555:5556:participant;2184
+server.5=127.0.0.1:6666:6667:participant;2185
+```
+
+通过-members参数，后跟服务器项的列表信息，可以代替-file参数进行全量更新配置操作。
+
+最后，所有形式的reconfig的为重新配置提供了条件，如果通过-v参数提供了配置版本号，reconfig命令会在执行前确认配置文件当前的版本号是否匹配，只有匹配才会成功执行。
+可以通过读取/zookeeper/config节点来获取当前配置的版本号，或通过zkCli工具来调用config获取配置版本号信息。
+
+**手动重配置**
+
+如果你真想手动进行重配置操作（也许使用旧版本的ZooKeeper），最简单最安全的方式是，每次在停止整个服务器和启动ZooKeeper集群服务（即让群首建立起来）时只进行一个配置变更操作。
+
+### 客户端连接串的管理
+
+连接串。客户端连接串常常表示为逗号分隔的host：port对，其中host为主机名或IP地址，通过主机名可以提供服务器实际IP与所访问的服务器的标识符之间的间接层的对应关系。
+
+不过，该灵活性有一定限制，运维人员可以改变组成集群的服务器机器，但不能改变客户端所使用的服务器。
+
+集群从三个到五个服务器时，客户端的重配置：
+
+![集群从三个到五个服务器时，客户端的重配置](/static/img/2018-08-06-ZooKeeper/2018-08-15-23-47-37.png)
+
+另一种方式可以使ZooKeeper的服务器数量更具弹性，而不需要改变客户端的配置。
+一个主机名可以解析为多个地址，如果主机名解析为多个IP地址，ZooKeeper就可以连接到其中的任何地址
+
+集群从三个到五个服务器时，使用DNS对客户端的重配置：
+
+![集群从三个到五个服务器时，使用DNS对客户端的重配置](/static/img/2018-08-06-ZooKeeper/2018-08-15-23-48-29.png)
+
+在使用主机名解析为多个地址方式时，还有一些注意事项。
+
+* 首先，所有的服务器必须使用相同的客户端端口号；
+* 其次，主机名解析只有在创建连接时才会发生，所以已经连接的客户端无法知道最新的名称解析，只能对新创建的ZooKeeper客户端生效。
+
+客户端的连接还可以包含路径信息，该路径指示了解析路径名称时的根路径。
+
+如果客户端的连接串为zk：2222/app/superApp，当客户端连接并执行getData（"/a.dat"，...）操作时，实际客户端会得到/app/superApp/a.dat节点的数据信息。
+
+_注意，连接串中指示的路径必须存在，而不会为你创建连接串中所指示的路径。_
+
+在连接串中添加路径信息的动机在于一个ZooKeeper集群为多个应用程序提供服务，这样不需要要求每个应用程序添加其路径的前缀信息。
+每个应用程序可以类似名称独享似的使用ZooKeeper集群，运维人员可以按他们的期望来划分命名空间。
+
+通过连接串指定ZooKeeper客户端的根节点：
+
+![通过连接串指定ZooKeeper客户端的根节点](/static/img/2018-08-06-ZooKeeper/2018-08-15-23-51-20.png)
+
+**连接串的重叠**
+
+> 当管理客户端连接串时，注意一个客户端的连接串永远不要包含两个不同的ZooKeeper集群的主机名，这是最快速也是最简单导致脑裂问题的方式。
+
+### 配额管理
+
+ZooKeeper的另一个可配置项为配额，ZooKeeper初步提供了znode节点数量和节点数据大小的配额管理的支持。
+可以通过配置来指定某个子树的配额，该子树就会被跟踪，如果该子树超过了配额限制，就会记录一条警告日志，但操作请求还是可以继续执行。
+此时，ZooKeeper会检测是否超过了某个配额限制，但不会阻止处理流程。
+
+配额管理的跟踪功能通过/zookeeper子树完成，所以应用程序不能在这个子树中存储自己的数据，这个子树只应该保留给ZooKeeper使用，而/zookeeper/quota节点就是ZooKeeper管理配额的节点。
+
+为了对应用程序/application/superApp创建一个配额项，需要在/application/superApp节点下创建两个子节点zookeeper_limits和zookeeper_stats。
+
+对于znode节点数量的限制称之为count，而对于节点数据大小的限制则为bytes。  
+在zookeeper_limits和zookeeper_stats节点中通过count=n，bytes=m来指定配额，其中n和m均为整数，  
+在zookeeper_limits节点中，n和m表示将会触发警告的级别（如果配置为-1就不会触发警告信息），  
+在zookeeper_stats节点中，n和m分别表示当前子树中的节点数量和子树节点的数据信息的当前大小。
+
+**对元数据的配额跟踪**
+
+> 对于子树节点数据的字节数配额跟踪功能，并不会包含每个znode节点的元数据的开销，元数据的大小大约100字节，
+> 所以如果每个节点的数据大小都比较小，跟踪znode节点的数量比跟踪znode数据的大小更加实用。
+
+```shell
+[zk: localhost:2181(CONNECTED) 2] create /application ""Created /application
+[zk: localhost:2181(CONNECTED) 3] create /application/superApp super
+Created /application/superApp
+[zk: localhost:2181(CONNECTED) 4] setquota -b 10 /application/superApp
+Comment: the parts are option -b val 10 path /application/superApp
+[zk: localhost:2181(CONNECTED) 5] listquota /application/superApp
+absolute path is /zookeeper/quota/application/superApp/zookeeper_limits
+Output quota for /application/superApp count=-1,bytes=10
+Output stat for /application/superApp count=1,bytes=5
+```
+
+创建了/application/superApp节点，且该节点的数据为5个字节（一个单词“super”），
+之后为/application/superApp节点设置了配额限制为10个字节，
+当列出/application/superApp节点配置限制是，发现数据大小的配额还有5个字节的余量，而并未对这个子树设置znode节点数量的配额限制，因为配额中count的值为-1。
+
+如果发送命令get/zookeeper/quota/application/superApp/zookeeper_stats，可以直接访问该节点数据，而不需要使用zkCli工具，
+事实上，可以通过创建或删除这些节点来创建或删除配额配置。如果运行以下命令：
+
+```shell
+create /application/superApp/lotsOfData ThisIsALotOfData
+```
+
+就会在日志中看到如下信息：
+
+```text
+Quota exceeded: /application/superApp bytes=21 limit=10
+```
+
+### 多租赁配置
+
+配额，提供了配置选项中的某些限制措施，而ACL策略更值得考虑如何使用ZooKeeper来服务于多租赁（multitenancy）情况。满足多租赁的一些令人信服的原因如下：
+
+* 为了提供可靠的服务器，ZooKeeper服务器需要运行于专用的硬件设备之上，跨多个应用程序共享这些硬件设备更容易符合资本投资的期望。
+* 发现，在大多数情况下，ZooKeeper的流量非常具有突发性：配置或状态的变化的突发操作会导致大量的负载，从而导致服务长时间的不可用。如果是没有什么关联的应用程序的突发操作，将这些应用程序共享这个服务器更能有效利用硬件资源。不过还是要注意失联事件发生时所产生的峰值，某些写得不太规范的应用程序在处理Disconnected事件时，产生的负载高于其所需要的资源。
+* 对于硬件资源的分摊，可以获得更好的故障容错性：如果两个应用程序，从之前各自三个服务器的集群中转移到一个由5台服务器组成的集群，总量上所使用的服务器更少了，对ZooKeeper也可以容忍两台服务器的故障，而不是之前的只能容忍一个服务器故障。
+
+当服务于多租赁的情况下时，运维人员一般会将数据树分割为不同的子树，每个子树为某个应用程序所专用。
+开发人员在设计应用程序时可以考虑在其所用的znode节点前添加前缀，
+但还有一个更简单的方法来隔离各个应用程序：在连接串中指定路径部分。  
+每个应用程序的开发人员在进行应用程序的开发时，就像使用专用的ZooKeeper服务一样。
+与此同时，运维人员还可以为应用节点配置配额限制，以便跟踪应用程序的空间使用情况。
+
+### 文件系统布局和格式
+
+快照文件将会被写入到DataDir参数所指定的目录中，而事务日志文件将会被写入到DataLogDir参数所指定的目录中。
+
+#### 事务日志
+
+```shell
+-rw-r--r--  1 breed 67108880 Jun  5 22:12 log.100000001
+-rw-r--r--  1 breed 67108880 Jul 15 21:37 log.200000001
+```
+
+这些文件非常大（每个都超过6MB）；
+其次这些文件名的后缀中均有一个很大数字。
+
+ZooKeeper为文件预分配大的数据块，来避免每次写入所带来的文件增长的元数据管理开销，如果你通过对这些文件进行十六进制转储打印，文件中全部以null字符（\0）填充，
+只有在最开始部分有少量的二进制数据，服务器运行一段时间后，其中的null字符逐渐被日志数据替换。
+
+日志文件中包含事务标签zxid，但为了减轻恢复负载，而且为了快速查找，每个日志文件的后缀为该日志文件中第一个zxid的十六进制形式。
+通过十六进制表示zxid的一个好处就是你可以快速区分zxid中时间戳部分和计数器部分，所以在例子中的第一个文件的时间戳为1，而第二个文件的时间戳为2。
+
+ZooKeeper丢失了某些znode节点信息，此时只有通过查找事务日志文件才可以知道客户端具体删除过哪些节点。
+
+通过以下命令来查看第二个日志文件：
+
+```shell
+java -cp $ZK_LIBS org.apache.zookeeper.server.LogFormatter version-2 log.200000001
+```
+
+```java
+7/15/13... session 0x13...00 cxid 0x0 zxid 0x200000001 createSession 30000
+7/15/13... session 0x13...00 cxid 0x2 zxid 0x200000002 create
+'/test,#22746573746 ...
+7/15/13... session 0x13...00 cxid 0x3 zxid 0x200000003 create
+'/test/c1,#6368696c ...
+7/15/13... session 0x13...00 cxid 0x4 zxid 0x200000004 create
+'/test/c2,#6368696c ...
+7/15/13... session 0x13...00 cxid 0x5 zxid 0x200000005 create
+'/test/c3,#6368696c ...
+7/15/13... session 0x13...00 cxid 0x0 zxid 0x200000006 closeSession null
+```
+
+每个日志文件中的事务均以可读形式一行行地展示出来。因为只有变更操作才会被记录到事务日志，所以在事务日志中不会看到任何读事务操作。
+
+#### 快照
+
+```shell
+-rw-r--r--  1 br33d  296 Jun  5 07:49 snapshot.0
+-rw-r--r--  1 br33d  415 Jul 15 21:33 snapshot.100000009
+```
+
+快照文件并不会被预分配空间，所以文件大小也更加准确地反映了其中包含的数据大小。其中后缀表示快照开始时当时的zxid值，快照文件实际上为一个模糊快照，
+直到事务日志重现之后才会成为一个有效的快照文件。因此在恢复系统时，必须从快照后缀的zxid开始重现事务日志文件，甚至更早的zxid开始重现事务。
+
+快照文件中保存的模糊快照信息同样为二进制格式。
+
+```shell
+java -cp $ZK_LIBS org.apache.zookeeper.server.SnapshotFormatter version-2 snapshot.100000009
+```
+
+```shell
+----
+/
+  cZxid = 0x00000000000000
+  ctime = Wed Dec 31 16:00:00 PST 1969
+  mZxid = 0x00000000000000
+  mtime = Wed Dec 31 16:00:00 PST 1969
+  pZxid = 0x00000100000002
+  cversion = 1
+  dataVersion = 0
+  aclVersion = 0
+  ephemeralOwner = 0x00000000000000
+  dataLength = 0
+ ----/sasd
+  cZxid = 0x00000100000002
+  ctime = Wed Jun 05 07:50:56 PDT 2013
+  mZxid = 0x00000100000002
+  mtime = Wed Jun 05 07:50:56 PDT 2013
+  pZxid = 0x00000100000002
+  cversion = 0
+  dataVersion = 0
+  aclVersion = 0
+  ephemeralOwner = 0x00000000000000
+  dataLength = 3
+ ----
+....
+```
+
+只有每个节点的元数据被转储打印出来，这样，运维人员就可以知道一个znode节点何时发生了变化，以及哪个znode节点占用了大量内存。
+很遗憾，数据信息和ACL策略并没有出现在输出中，因此，在进行问题诊断时，记住将快照中的信息与日志文件的信息结合起来分析问题所在。
+
+#### 时间戳文件
+
+ZooKeeper的持久状态由两个小文件构成，它们是两个时间戳文件，其文件名为acceptedEpoch和currentEpoch。
+
+这两个文件反映了某个服务器进程已接受的和正在处理的信息。
+虽然这两个文件并不包含任何应用数据信息，但对于数据一致性却至关重要，所以备份一个ZooKeeper服务器的原始数据文件时，不要忘了这两个文件。
+
+#### 已保存的ZooKeeper数据的使用
+
+ZooKeeper数据存储的一个优点是，不管独立模式的服务器还是集群方式的服务器，数据的存储方式都一样。
+
+将文件放到一个独立模式的服务器下空白的data目录下，然后启动服务，该服务就会真实反映出你所拷贝的那个服务器上的状态信息。
+这项技术可以使你从生产环境拷贝服务器的状态信息，用于稍后的复查等用途。
+
+同时也意味着，你只需要简单地将这些数据文件进行备份，就可以轻易地完成ZooKeeper服务器的备份，如果你采用这种方式进行备份，还需要注意一些问题。
+
+首先，ZooKeeper为复制服务，所以系统中存在冗余信息，如果你进行备份操作，你只需要备份其中一台服务器的数据信息。
+
+当ZooKeeper服务器认可了一个事务，从这时起它就会承诺记录下该状态信息，你一定要记住这一点，这一点非常重要。
+因此如果你使用旧的备份文件恢复一个服务器，就会导致服务器违反其承诺。如果你刚刚遭遇了所有服务器的数据丢失的情况，这可能不是什么大问题，
+但如果你的集群在正常工作中，而你将某个服务器还原为旧的状态，你的行为可能会导致其他服务器也丢失了某些信息。
+
+如果你要对全部或大多数服务器进行数据丢失的恢复操作，最好的办法是使用你最新抓取的状态信息（从最新的存活服务器中获取的备份文件），并在启动服务器之前将状态信息拷贝到其他所有服务器上。
+
+### 四字母命令
+
+四字母命令的主要目标就是提供一个非常简单的协议，使我们使用简单的工具，如telnet或nc，就可以完成系统健康状况检查和问题的诊断。
+为简单起见，四字母命令的输出也是可读形式，使得更容易使用这些命令。
+
+* ruok
+	* 提供（有限的）服务器的状态信息。如果服务器正在运行，就会返回imok响应信息。事实上“OK”状态只是一个相对的概念，例如，服务器运行中，虽无法与集群中其他服务器进行通信，然而该服务器返回的状态仍然是“OK”。对于更详细信息及可靠的健康状态检查，需要使用stat命令。
+* stat
+	* 提供了服务器的状态信息和当前活动的连接情况，状态信息包括一些基本的统计信息，还包括该服务器当前是否处于活动状态，即作为群首或追随者，该服务器所知的最后的zxid信息。某些统计信息为累计值，我们可以使用srst命令进行重置。
+* srvr
+	* 提供的信息与stat一样，只是忽略了连接情况的信息。
+* dump
+	* 提供会话信息，列出当前活动的会话信息以及这些会话的过期时间。该命令只能在群首服务器上运行。
+* conf
+	* 列出该服务器启动运行所使用的基本配置参数。
+* envi
+	* 列出各种各样的Java环境参数。
+* mntr
+	* 提供了比stat命令更加详细的服务器统计数据。每行输出的格式为`key<tab>value`。（群首服务器还将列出只用于群首的额外参数信息）。
+* wchs
+	* 列出该服务器所跟踪的监视点的简短摘要信息。
+* wchc
+	* 列出该服务器所跟踪的监视点的详细信息，根据会话进行分组。
+* wchp
+	* 列出该服务器所跟踪的监视点的详细信息，根据被设置监视点的znode节点路径进行分组。
+* cons，crst
+	* cons命令列出该服务器上每个连接的详细统计信息，crst重置这些连接信息中的计数器为0。
+
+### 通过JMX进行监控
+
+#### 远程连接
+
+用于启动ZooKeeper服务器的zkServer.sh脚本中，使用SERVER_JVMFLAGS环境变量来配置这些系统属性。
+
+```conf
+SERVER_JVMFLAGS="-Dcom.sun.management.jmxremote.password.file=passwd \
+  -Dcom.sun.management.jmxremote.port=55555 \
+  -Dcom.sun.management.jmxremote.ssl=false \
+  -Dcom.sun.management.jmxremote.access.file=access"
+
+_path_to_zookeeper_/bin/zkServer.sh start _path_to_server3.cfg_
+```
+
+系统属性参数中用到了密码文件和访问控制文件，这些文件的格式非常简单。首先，创建passwd文件，方式如下：
+
+```conf
+# user password
+admin <password>
+```
+
+_注意，密码文件中的密码信息为明文保存，因此只能给密码文件的所有者分配读写权限，如果不这样做，Java就无法启动服务。_
+
+### 工具
+
+一部分最受欢迎的软件或工具：
+
+* 通过C绑定实现的Perl和Python语言的绑定库。
+* ZooKeeper日志可视化的软件。
+* 一个基于网页的集群节点浏览和ZooKeeper数据修改功能的软件。
+* ZooKeeper中自带的zktreeutil和guano均可以从GitHub下载。这些软件可以对ZooKeeper的数据进行导入和导出操作。
+* zktop，也可以从GitHub下载，该软件监控ZooKeeper的负载，并提供Unix的top命令类似的输出。
+* ZooKeeper冒烟测试，可以从GitHub上下载。该软件对ZooKeeper集群提供了一个简单的冒烟测试客户端，这个工具对于开发人员熟悉ZooKeeper非常不错。
 
 ---
 
