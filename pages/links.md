@@ -12,3 +12,4 @@ permalink: /links/
 
 * [Wisdom's blog](http://www.xuerlove.com/)
 * [jinguangyue的博客](http://blog.csdn.net/coderyue)
+* [Xiaoliji's Blog](https://darktiantian.github.io/)
