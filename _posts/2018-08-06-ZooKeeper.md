@@ -1608,7 +1608,7 @@ zk.multi(Arrays.asList(Op.check("/master-path", stat.getVersion()),
                        Op.create("/woker1", modify(z1Data),-1),③
 ```
 
-_注意，如果在/master节点中以主节点ID来保存路径信息，以上方式就无法正常运行，因为新主节点每次都会创建/master，从而导致/master的版本号始终为1。
+_注意，如果在/master节点中以主节点ID来保存路径信息，以上方式就无法正常运行，因为新主节点每次都会创建/master，从而导致/master的版本号始终为1。_
 
 ### 通过监视点代替显式缓存管理
 
