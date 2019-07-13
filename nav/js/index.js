@@ -1,7 +1,9 @@
 $(function () {
 	// $("img").addClass("img-responsive");
 	// $("li").addClass("col-md-1 text-center");
-	$("ul").addClass("list-inline");
+	$("ul").addClass("navbar-nav d-block mr-auto list-unstyled");
+	$("li").addClass("nav-item float-left");
+	$("a").addClass("nav-link");
 	$("form").on("submit", function () {
 		$("#inputFilter").blur();
 		return false;
@@ -20,14 +22,14 @@ $(function () {
 		}
 		var txt = $("#inputFilter").val();
 		if ($.trim(txt) != "") {
-			$("fieldset").hide();
+			$(".card").hide();
 			var $shows = $("li").hide().filter(function () {
 				return $(this).children("a").children("span").text().toUpperCase().indexOf(txt.toUpperCase()) != -1;
 			});
-			$shows.show().parents("fieldset").show();
+			$shows.show().parents(".card").show();
 		} else {
 			$("li").show();
-			$("fieldset").show();
+			$(".card").show();
 		}
 	});
 })

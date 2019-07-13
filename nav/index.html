@@ -7,7 +7,7 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<!-- 上述3个meta标签*必须*放在最前面，任何其他内容都*必须*跟随其后！ -->
 	<link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
-	<link href="./css/bootstrap.min.css" rel="stylesheet">
+	<link href="./css/Darkly.bootstrap.min.css" rel="stylesheet">
 	<link href="./css/box.css" rel="stylesheet">
 	<link href="./css/index.css" rel="stylesheet">
 	<meta http-equiv="Cache-Control" content="max-age=31536000" />
@@ -21,530 +21,563 @@
 		<div class="inner-box"></div>
 		<div class="text-box">loading</div>
 	</div>
+	<!-- https://bootswatch.com/darkly/ -->
 	<div id="divMain" class="container hide">
 		<form class="form-horizontal">
-			<div class="form-group">
-				<!-- <h2>我的导航</h2> -->
-				<div class="input-group">
-					<input type="search" class="form-control" id="inputFilter" autocomplete="off" placeholder="请输入关键字">
-					<span class="input-group-addon">
-						<span class="glyphicon glyphicon-search"></span>
-					</span>
-				</div>
-			</div>
-			<div class="form-group">
-				<fieldset class="panel panel-success">
-					<div class="panel-heading">综合</div>
-					<ul>
-						<li>
-							<a href="https://www.google.com/?gws_rd=ssl">
-								<img src="./img/Google.png" />
-								<span>Google</span>
-							</a>
-						</li>
-						<li>
-							<a href="https://www.qwant.com/">
-								<img src="./img/qwant.ico" />
-								<span>Qwant</span>
-							</a>
-						</li>
-						<li>
-							<a href="https://www.ecosia.org/">
-								<img src="./img/ecosia.ico" />
-								<span>Ecosia</span>
-							</a>
-						</li>
-						<li>
-							<a href="https://yandex.com/">
-								<img src="./img/yandex.png" />
-								<span>Yandex</span>
-							</a>
-						</li>
-						<li>
-							<a href="http://stackoverflow.com/">
-								<img src="./img/stackoverflow.png" />
-								<span>Stack Overflow</span>
-							</a>
-						</li>
-						<li>
-							<a href="http://mvnrepository.com/">
-								<img src="./img/mvnrepository.png" />
-								<span>mvn repository</span>
-							</a>
-						</li>
-						<li>
-							<a href="https://github.com/explore">
-								<img src="./img/GitHub.png" />
-								<span>GitHub</span>
-							</a>
-						</li>
-						<li>
-							<a href="https://store.docker.com/">
-								<img src="./img/dockerstore.png" />
-								<span>The Docker Store</span>
-							</a>
-						</li>
+			<div class="bs-component mb-3 mt-3">
+				<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+					<a class="navbar-brand" href="#">Filter</a>
+					<button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarColor02" aria-controls="navbarColor02" aria-expanded="false" aria-label="Toggle navigation">
+						<span class="navbar-toggler-icon"></span>
+					</button>
 
-						<li>
-							<a href="http://songxp.top">
-								<img src="./img/songxp.ico" />
-								<span>Songxp的博客</span>
-							</a>
-						</li>
-						<li>
-							<a href="https://www.bithublab.org/">
-								<img src="./img/bithublab.png" />
-								<span>BitHubLab</span>
-							</a>
-						</li>
-						<li>
-							<a href="https://www.jiumodiary.com/">
-								<img src="./img/jiumodiary.png" />
-								<span>鸠摩搜索</span>
-							</a>
-						</li>
-						<li>
-							<a href="https://www.xiaoso.net/">
-								<img src="./img/xiaoso.ico" />
-								<span>小不点搜索</span>
-							</a>
-						</li>
-						<li>
-							<a href="http://www.pansoso.com/">
-								<img src="./img/pansoso.ico" />
-								<span>盘搜搜</span>
-							</a>
-						</li>
-					</ul>
-				</fieldset>
-				<fieldset class="panel panel-info">
-					<div class="panel-heading">工具</div>
-					<ul>
-						<li>
-							<a href="https://www.bing.com/translator">
-								<img src="./img/BingTranslate.png" />
-								<span>Bing翻译</span>
-							</a>
-						</li>
-						<li>
-							<a href="http://translate.google.cn/">
-								<img src="./img/GoogleTranslate.ico" />
-								<span>Google翻译</span>
-							</a>
-						</li>
-						<li>
-							<a href="http://fy.iciba.com/">
-								<img src="./img/ciba.ico" />
-								<span>爱词霸翻译</span>
-							</a>
-						</li>
-						<li>
-							<a href="http://tool.oschina.net/">
-								<img src="./img/oschinatool.ico" />
-								<span>开源中国在线工具</span>
-							</a>
-						</li>
-						<li>
-							<a href="http://string-functions.com/">
-								<img src="./img/string-functions.ico" />
-								<span>string-functions</span>
-							</a>
-						</li>
-						<li>
-							<a href="http://tool.chinaz.com/Tools/unixtime.aspx">
-								<img src="./img/chinaz.ico" />
-								<span>时间戳转换</span>
-							</a>
-						</li>
-						<li>
-							<a href="https://unicode-table.com/cn/">
-								<img src="./img/unicode.png" />
-								<span>Unicode®字符百科</span>
-							</a>
-						</li>
-						<li>
-							<a href="https://spellcheckplus.com/">
-								<img src="./img/spellcheck.png" />
-								<span>Spell Check</span>
-							</a>
-						</li>
-						<li>
-							<a href="http://spring.io/projects">
-								<img src="./img/spring.png" />
-								<span>Spring</span>
-							</a>
-						</li>
-						<li>
-							<a href="https://docs.docker.com/reference/">
-								<img src="./img/dockerdoc.ico" />
-								<span>Docker reference</span>
-							</a>
-						</li>
-						<li>
-							<a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html">
-								<img src="./img/elasticsearch.ico" />
-								<span>Elasticsearch Reference</span>
-							</a>
-						</li>
-						<li>
-							<a href="https://docs.oracle.com/en/java/javase">
-								<img src="./img/oracle.ico" />
-								<span>JDK Documentation</span>
-							</a>
-						</li>
-						<li>
-							<a href="https://github.com/google/guava/wiki">
-								<img src="./img/Google.png" />
-								<span>Guava Wiki</span>
-							</a>
-						</li>
-						<li>
-							<a href="https://dev.mysql.com/doc/">
-								<img src="./img/mysql.ico" />
-								<span>MySQL Documentation</span>
-							</a>
-						</li>
-						<li>
-							<a href="https://leetcode.com/">
-								<img src="./img/leetcode.ico" />
-								<span>LeetCode</span>
-							</a>
-						</li>
-						<li>
-							<a href="https://www.jcp.org/en/home/index">
-								<img src="./img/jcp.ico" />
-								<span>JCP</span>
-							</a>
-						</li>
-						<li>
-							<a href="http://start.dubbo.io/">
-								<img src="./img/dubbo.ico" />
-								<span>Dubbo initializr</span>
-							</a>
-						</li>
-						<li>
-							<a href="https://start.spring.io/">
-								<img src="./img/spring.png" />
-								<span>Spring initializr</span>
-							</a>
-						</li>
-						<li>
-							<a href="https://mirrors.tuna.tsinghua.edu.cn/#">
-								<img src="./img/tuna.png" />
-								<span>清华大学开源软件镜像站</span>
-							</a>
-						</li>
-						<li>
-							<a href="https://pkgs.org/">
-								<img src="./img/pkgs.ico" />
-								<span>pkgs.org</span>
-							</a>
-						</li>
-						<li>
-							<a href="https://godoc.org/">
-								<img src="./img/godoc.ico" />
-								<span>godoc</span>
-							</a>
-						</li>
-						<li>
-							<a href="http://rpmfind.net/">
-								<img src="./img/rpmfind.ico" />
-								<span>Rpmfind</span>
-							</a>
-						</li>
-					</ul>
-				</fieldset>
-				<fieldset class="panel panel-warning">
-					<div class="panel-heading">工作</div>
-					<ul>
-						<li>
-							<a href="https://work.alibaba-inc.com/">
-								<img src="./img/neiwai.ico" />
-								<span>阿里内外</span>
-							</a>
-						</li>
-						<li>
-							<a href="https://yuque.antfin-inc.com/dashboard">
-								<img src="./img/yuque.png" />
-								<span>语雀</span>
-							</a>
-						</li>
-						<li>
-							<a href="https://www.atatech.org/">
-								<img src="./img/ata.ico" />
-								<span>ATA</span>
-							</a>
-						</li>
-						<li>
-							<a href="https://idb4.alibaba-inc.com/">
-								<img src="./img/idb.png" />
-								<span>iDB</span>
-							</a>
-						</li>
-						<li>
-							<a href="https://aone.alibaba-inc.com/">
-								<img src="./img/aone.ico" />
-								<span>Aone</span>
-							</a>
-						</li>
-						<li>
-							<a href="https://tickets.alibaba-inc.com/goc-ticket/tickets">
-								<img src="./img/goc.ico" />
-								<span>GOC</span>
-							</a>
-						</li>
-						<li>
-							<a href="https://n.alibaba-inc.com/">
-								<img src="./img/normandy.ico" />
-								<span>Normandy</span>
-							</a>
-						</li>
-						<li>
-							<a href="https://eagleeye-console.alibaba-inc.com/#/home">
-								<img src="./img/aliyun.ico" />
-								<span>EagleEye</span>
-							</a>
-						</li>
-						<li>
-							<a href="http://hsf.alibaba-inc.com/hsfops/serviceSearch.htm">
-								<img src="./img/hsfops.ico" />
-								<span>HSF OPS</span>
-							</a>
-						</li>
-						<li>
-							<a href="http://schedulerx.office.alibaba-inc.com:9999/dts-console/#/">
-								<img src="./img/aliyun.ico" />
-								<span>DTS</span>
-							</a>
-						</li>
-						<li>
-							<a
-								href="http://diamond.alibaba-inc.com/diamond-ops/static/pages/config/index.html?serverId=center&">
-								<img src="./img/aliyun.ico" />
-								<span>Diamond OPS</span>
-							</a>
-						</li>
-						<li>
-							<a
-								href="http://tiddo.alibaba-inc.com/saas-tair/#/">
-								<img src="./img/aliyun.ico" />
-								<span>Tair</span>
-							</a>
-						</li>
-						<li>
-							<a href="http://mw.alibaba-inc.com/doc.html">
-								<img src="./img/alimw.ico" />
-								<span>中间件</span>
-							</a>
-						</li>
-						<li>
-							<a href="https://dw.alibaba-inc.com/#/">
-								<img src="./img/datafactory.png" />
-								<span>数据工厂</span>
-							</a>
-						</li>
-						<li>
-							<a href="http://gitlab.alibaba-inc.com/">
-								<img src="./img/gitlab.ico" />
-								<span>GitLab</span>
-							</a>
-						</li>
-						<li>
-							<a href="https://nbf.alibaba-inc.com/">
-								<img src="./img/nbf.png" />
-								<span>NBF</span>
-							</a>
-						</li>
-						<li>
-							<a href="https://address-console.cainiao-inc.com/#/">
-								<img src="./img/cainiao.png" />
-								<span>菜鸟工具</span>
-							</a>
-						</li>
-						<li>
-							<a href="http://work.cainiao-inc.com/portal/workPortal.htm">
-								<img src="./img/xiaoer.png" />
-								<span>小二工作台</span>
-							</a>
-						</li>
-						<li>
-							<a href="http://inventory.taobao.org/index.htm">
-								<img src="./img/alibaba.jpeg" />
-								<span>库存百晓生</span>
-							</a>
-						</li>
-					</ul>
-				</fieldset>
-				<fieldset class="panel panel-info">
-					<div class="panel-heading">资讯</div>
-					<ul>
-						<li>
-							<a href="https://segmentfault.com/hottest">
-								<img src="./img/segmentfault.ico" />
-								<span>segmentfault</span>
-							</a>
-						</li>
-						<li>
-							<a href="http://www.importnew.com/">
-								<img src="./img/importnew.png" />
-								<span>Import New</span>
-							</a>
-						</li>
-						<li>
-							<a href="https://www.v2ex.com/?tab=tech">
-								<img src="./img/v2ex.ico" />
-								<span>V2EX</span>
-							</a>
-						</li>
-						<li>
-							<a href="https://www.ibm.com/developerworks/cn/java/">
-								<img src="./img/ibmdeveloperworks.png" />
-								<span>developerworks</span>
-							</a>
-						</li>
-						<!-- <li>
+					<div class="collapse navbar-collapse" id="navbarColor02">
+						<form class="form-inline my-2 my-lg-0">
+							<input class="form-control mr-sm-2" id="inputFilter" type="text" placeholder="Search">
+						</form>
+					</div>
+				</nav>
+			</div>
+
+			<div class="form-group">
+				<div class="card border-primary mb-3">
+					<div class="card-header bg-primary">综合</div>
+					<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+						<div class="collapse navbar-collapse">
+							<ul>
+								<li>
+									<a href="https://www.google.com/?gws_rd=ssl">
+										<img src="./img/Google.png" />
+										<span>Google</span>
+									</a>
+								</li>
+								<li>
+									<a href="https://www.qwant.com/">
+										<img src="./img/qwant.ico" />
+										<span>Qwant</span>
+									</a>
+								</li>
+								<li>
+									<a href="https://www.ecosia.org/">
+										<img src="./img/ecosia.ico" />
+										<span>Ecosia</span>
+									</a>
+								</li>
+								<li>
+									<a href="https://yandex.com/">
+										<img src="./img/yandex.png" />
+										<span>Yandex</span>
+									</a>
+								</li>
+								<li>
+									<a href="http://stackoverflow.com/">
+										<img src="./img/stackoverflow.png" />
+										<span>Stack Overflow</span>
+									</a>
+								</li>
+								<li>
+									<a href="http://mvnrepository.com/">
+										<img src="./img/mvnrepository.png" />
+										<span>mvn repository</span>
+									</a>
+								</li>
+								<li>
+									<a href="https://github.com/explore">
+										<img src="./img/GitHub.png" />
+										<span>GitHub</span>
+									</a>
+								</li>
+								<li>
+									<a href="https://store.docker.com/">
+										<img src="./img/dockerstore.png" />
+										<span>The Docker Store</span>
+									</a>
+								</li>
+
+								<li>
+									<a href="http://songxp.top">
+										<img src="./img/songxp.ico" />
+										<span>Songxp的博客</span>
+									</a>
+								</li>
+								<li>
+									<a href="https://www.bithublab.org/">
+										<img src="./img/bithublab.png" />
+										<span>BitHubLab</span>
+									</a>
+								</li>
+								<li>
+									<a href="https://www.jiumodiary.com/">
+										<img src="./img/jiumodiary.png" />
+										<span>鸠摩搜索</span>
+									</a>
+								</li>
+								<li>
+									<a href="https://www.xiaoso.net/">
+										<img src="./img/xiaoso.ico" />
+										<span>小不点搜索</span>
+									</a>
+								</li>
+								<li>
+									<a href="http://www.pansoso.com/">
+										<img src="./img/pansoso.ico" />
+										<span>盘搜搜</span>
+									</a>
+								</li>
+							</ul>
+						</div>
+					</nav>
+				</div>
+				<div class="card border-success mb-3">
+					<div class="card-header bg-success">工具</div>
+					<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+						<div class="collapse navbar-collapse">
+							<ul>
+								<li>
+									<a href="https://www.bing.com/translator">
+										<img src="./img/BingTranslate.png" />
+										<span>Bing翻译</span>
+									</a>
+								</li>
+								<li>
+									<a href="http://translate.google.cn/">
+										<img src="./img/GoogleTranslate.ico" />
+										<span>Google翻译</span>
+									</a>
+								</li>
+								<li>
+									<a href="http://fy.iciba.com/">
+										<img src="./img/ciba.ico" />
+										<span>爱词霸翻译</span>
+									</a>
+								</li>
+								<li>
+									<a href="http://tool.oschina.net/">
+										<img src="./img/oschinatool.ico" />
+										<span>开源中国在线工具</span>
+									</a>
+								</li>
+								<li>
+									<a href="http://string-functions.com/">
+										<img src="./img/string-functions.ico" />
+										<span>string-functions</span>
+									</a>
+								</li>
+								<li>
+									<a href="http://tool.chinaz.com/Tools/unixtime.aspx">
+										<img src="./img/chinaz.ico" />
+										<span>时间戳转换</span>
+									</a>
+								</li>
+								<li>
+									<a href="https://unicode-table.com/cn/">
+										<img src="./img/unicode.png" />
+										<span>Unicode®字符百科</span>
+									</a>
+								</li>
+								<li>
+									<a href="https://spellcheckplus.com/">
+										<img src="./img/spellcheck.png" />
+										<span>Spell Check</span>
+									</a>
+								</li>
+								<li>
+									<a href="http://spring.io/projects">
+										<img src="./img/spring.png" />
+										<span>Spring</span>
+									</a>
+								</li>
+								<li>
+									<a href="https://docs.docker.com/reference/">
+										<img src="./img/dockerdoc.ico" />
+										<span>Docker reference</span>
+									</a>
+								</li>
+								<li>
+									<a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html">
+										<img src="./img/elasticsearch.ico" />
+										<span>Elasticsearch Reference</span>
+									</a>
+								</li>
+								<li>
+									<a href="https://docs.oracle.com/en/java/javase">
+										<img src="./img/oracle.ico" />
+										<span>JDK Documentation</span>
+									</a>
+								</li>
+								<li>
+									<a href="https://github.com/google/guava/wiki">
+										<img src="./img/Google.png" />
+										<span>Guava Wiki</span>
+									</a>
+								</li>
+								<li>
+									<a href="https://dev.mysql.com/doc/">
+										<img src="./img/mysql.ico" />
+										<span>MySQL Documentation</span>
+									</a>
+								</li>
+								<li>
+									<a href="https://leetcode.com/">
+										<img src="./img/leetcode.ico" />
+										<span>LeetCode</span>
+									</a>
+								</li>
+								<li>
+									<a href="https://www.jcp.org/en/home/index">
+										<img src="./img/jcp.ico" />
+										<span>JCP</span>
+									</a>
+								</li>
+								<li>
+									<a href="http://start.dubbo.io/">
+										<img src="./img/dubbo.ico" />
+										<span>Dubbo initializr</span>
+									</a>
+								</li>
+								<li>
+									<a href="https://start.spring.io/">
+										<img src="./img/spring.png" />
+										<span>Spring initializr</span>
+									</a>
+								</li>
+								<li>
+									<a href="https://mirrors.tuna.tsinghua.edu.cn/#">
+										<img src="./img/tuna.png" />
+										<span>清华大学开源软件镜像站</span>
+									</a>
+								</li>
+								<li>
+									<a href="https://pkgs.org/">
+										<img src="./img/pkgs.ico" />
+										<span>pkgs.org</span>
+									</a>
+								</li>
+								<li>
+									<a href="https://godoc.org/">
+										<img src="./img/godoc.ico" />
+										<span>godoc</span>
+									</a>
+								</li>
+								<li>
+									<a href="http://rpmfind.net/">
+										<img src="./img/rpmfind.ico" />
+										<span>Rpmfind</span>
+									</a>
+								</li>
+							</ul>
+						</div>
+					</nav>
+				</div>
+				<div class="card border-danger mb-3">
+					<div class="card-header bg-danger">工作</div>
+					<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+						<div class="collapse navbar-collapse">
+							<ul>
+								<li>
+									<a href="https://work.alibaba-inc.com/">
+										<img src="./img/neiwai.ico" />
+										<span>阿里内外</span>
+									</a>
+								</li>
+								<li>
+									<a href="https://yuque.antfin-inc.com/dashboard">
+										<img src="./img/yuque.png" />
+										<span>语雀</span>
+									</a>
+								</li>
+								<li>
+									<a href="https://www.atatech.org/">
+										<img src="./img/ata.ico" />
+										<span>ATA</span>
+									</a>
+								</li>
+								<li>
+									<a href="https://idb4.alibaba-inc.com/">
+										<img src="./img/idb.png" />
+										<span>iDB</span>
+									</a>
+								</li>
+								<li>
+									<a href="https://aone.alibaba-inc.com/">
+										<img src="./img/aone.ico" />
+										<span>Aone</span>
+									</a>
+								</li>
+								<li>
+									<a href="https://tickets.alibaba-inc.com/goc-ticket/tickets">
+										<img src="./img/goc.ico" />
+										<span>GOC</span>
+									</a>
+								</li>
+								<li>
+									<a href="https://n.alibaba-inc.com/">
+										<img src="./img/normandy.ico" />
+										<span>Normandy</span>
+									</a>
+								</li>
+								<li>
+									<a href="https://eagleeye-console.alibaba-inc.com/#/home">
+										<img src="./img/aliyun.ico" />
+										<span>EagleEye</span>
+									</a>
+								</li>
+								<li>
+									<a href="http://hsf.alibaba-inc.com/hsfops/serviceSearch.htm">
+										<img src="./img/hsfops.ico" />
+										<span>HSF OPS</span>
+									</a>
+								</li>
+								<li>
+									<a href="http://schedulerx.office.alibaba-inc.com:9999/dts-console/#/">
+										<img src="./img/aliyun.ico" />
+										<span>DTS</span>
+									</a>
+								</li>
+								<li>
+									<a href="http://diamond.alibaba-inc.com/diamond-ops/static/pages/config/index.html?serverId=center&">
+										<img src="./img/aliyun.ico" />
+										<span>Diamond OPS</span>
+									</a>
+								</li>
+								<li>
+									<a href="http://tiddo.alibaba-inc.com/saas-tair/#/">
+										<img src="./img/aliyun.ico" />
+										<span>Tair</span>
+									</a>
+								</li>
+								<li>
+									<a href="http://mw.alibaba-inc.com/doc.html">
+										<img src="./img/alimw.ico" />
+										<span>中间件</span>
+									</a>
+								</li>
+								<li>
+									<a href="https://dw.alibaba-inc.com/#/">
+										<img src="./img/datafactory.png" />
+										<span>数据工厂</span>
+									</a>
+								</li>
+								<li>
+									<a href="http://gitlab.alibaba-inc.com/">
+										<img src="./img/gitlab.ico" />
+										<span>GitLab</span>
+									</a>
+								</li>
+								<li>
+									<a href="https://nbf.alibaba-inc.com/">
+										<img src="./img/nbf.png" />
+										<span>NBF</span>
+									</a>
+								</li>
+								<li>
+									<a href="https://address-console.cainiao-inc.com/#/">
+										<img src="./img/cainiao.png" />
+										<span>菜鸟工具</span>
+									</a>
+								</li>
+								<li>
+									<a href="http://work.cainiao-inc.com/portal/workPortal.htm">
+										<img src="./img/xiaoer.png" />
+										<span>小二工作台</span>
+									</a>
+								</li>
+								<li>
+									<a href="http://inventory.taobao.org/index.htm">
+										<img src="./img/alibaba.jpeg" />
+										<span>库存百晓生</span>
+									</a>
+								</li>
+							</ul>
+						</div>
+					</nav>
+				</div>
+				<div class="card border-warning mb-3">
+					<div class="card-header bg-warning">资讯</div>
+					<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+						<div class="collapse navbar-collapse">
+							<ul>
+								<li>
+									<a href="https://segmentfault.com/hottest">
+										<img src="./img/segmentfault.ico" />
+										<span>segmentfault</span>
+									</a>
+								</li>
+								<li>
+									<a href="http://www.importnew.com/">
+										<img src="./img/importnew.png" />
+										<span>Import New</span>
+									</a>
+								</li>
+								<li>
+									<a href="https://www.v2ex.com/?tab=tech">
+										<img src="./img/v2ex.ico" />
+										<span>V2EX</span>
+									</a>
+								</li>
+								<li>
+									<a href="https://www.ibm.com/developerworks/cn/java/">
+										<img src="./img/ibmdeveloperworks.png" />
+										<span>developerworks</span>
+									</a>
+								</li>
+								<!-- <li>
 							<a href="https://www.iplaysoft.com/">
 								<img src="./img/iplaysoft.ico" />
 								<span>异次元软件世界</span>
 							</a>
 						</li> -->
-						<li>
-							<a href="https://exp.newsmth.net/board/2446f4dbe195a4503248184c39035af4">
-								<img src="./img/newsmth.ico" />
-								<span>水木社区</span>
-							</a>
-						</li>
-					</ul>
-				</fieldset>
-				<fieldset class="panel panel-success">
-					<div class="panel-heading">其它</div>
-					<ul>
-						<li>
-							<a href="http://www.onhax.net/">
-								<img src="./img/onhax.png" />
-								<span>On HAX</span>
-							</a>
-						</li>
-						<li>
-							<a href="https://alternativeto.net/">
-								<img src="./img/alternativeto.ico" />
-								<span>alternativeto</span>
-							</a>
-						</li>
-						<li>
-							<a href="https://msdn.itellyou.cn/">
-								<img src="./img/itellyou.ico" />
-								<span>MSDN, 我告诉你</span>
-							</a>
-						</li>
-						<li>
-							<a href="https://chrome.google.com/webstore">
-								<img src="./img/chromestore.png" />
-								<span>Chrome商店</span>
-							</a>
-						</li>
-						<li>
-							<a href="https://xclient.info/">
-								<img src="./img/xclient.ico" />
-								<span>Xclient</span>
-							</a>
-						</li>
-						<li>
-							<a href="https://www.macsky.net/">
-								<img src="./img/macsky.jpg" />
-								<span>MACSKY</span>
-							</a>
-						</li>
-						<li>
-							<a href="https://mac-torrent-download.net/">
-								<img src="./img/mac-torrent-download.ico" />
-								<span>mac-torrent-download</span>
-							</a>
-						</li>
-						<li>
-							<a href="https://bwh1.net/clientarea.php?action=products">
-								<img src="./img/ss16.png" />
-								<span>搬瓦工</span>
-							</a>
-						</li>
-						<li>
-							<a href="https://bwh88.net/clientarea.php?action=products">
-								<img src="./img/ss16.png" />
-								<span>搬瓦工88</span>
-							</a>
-						</li>
-						<li>
-							<a href="https://kiwivm.64clouds.com/main-exec.php?mode=extras_shadowsocks">
-								<img src="./img/ss16.png" />
-								<span>搬瓦工SS</span>
-							</a>
-						</li>
-					</ul>
-				</fieldset>
-				<fieldset class="panel panel-info">
-					<div class="panel-heading">生活</div>
-					<ul>
-						<li>
-							<a href="http://www.12306.cn/mormhweb/">
-								<img src="./img/12306.png" />
-								<span>12306</span>
-							</a>
-						</li>
-						<li>
-							<a href="http://192.168.0.1/">
-								<img src="./img/tplink.png" />
-								<span>路由器</span>
-							</a>
-						</li>
-						<li>
-							<a href="https://www.smzdm.com/">
-								<img src="./img/smzdm.ico" />
-								<span>什么值得买</span>
-							</a>
-						</li>
-						<li>
-							<a href="https://map.bjsubway.com/">
-								<img src="./img/bjsubway.ico" />
-								<span>北京地铁线路图</span>
-							</a>
-						</li>
-					</ul>
-				</fieldset>
-				<fieldset class="panel panel-warning">
-					<div class="panel-heading">娱乐</div>
-					<ul>
-						<li>
-							<a href="http://www.zimuzu.tv/">
-								<img src="./img/zimuzu.png" />
-								<span>人人影视</span>
-							</a>
-						</li>
-						<li>
-							<a href="http://www.dytt8.net/">
-								<img src="./img/dytt.gif" />
-								<span>电影天堂</span>
-							</a>
-						</li>
-						<li>
-							<a href="http://www.id97.com/">
-								<img src="./img/id97.ico" />
-								<span>97电影网</span>
-							</a>
-						</li>
-						<li>
-							<a href="https://www.douyu.com">
-								<img src="./img/douyu.ico" />
-								<span>斗鱼TV</span>
-							</a>
-						</li>
-						<!-- <li>
+								<li>
+									<a href="https://exp.newsmth.net/board/2446f4dbe195a4503248184c39035af4">
+										<img src="./img/newsmth.ico" />
+										<span>水木社区</span>
+									</a>
+								</li>
+							</ul>
+						</div>
+					</nav>
+				</div>
+				<div class="card border-info mb-3">
+					<div class="card-header bg-info">其它</div>
+					<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+						<div class="collapse navbar-collapse">
+							<ul>
+								<li>
+									<a href="http://www.onhax.net/">
+										<img src="./img/onhax.png" />
+										<span>On HAX</span>
+									</a>
+								</li>
+								<li>
+									<a href="https://alternativeto.net/">
+										<img src="./img/alternativeto.ico" />
+										<span>alternativeto</span>
+									</a>
+								</li>
+								<li>
+									<a href="https://msdn.itellyou.cn/">
+										<img src="./img/itellyou.ico" />
+										<span>MSDN, 我告诉你</span>
+									</a>
+								</li>
+								<li>
+									<a href="https://chrome.google.com/webstore">
+										<img src="./img/chromestore.png" />
+										<span>Chrome商店</span>
+									</a>
+								</li>
+								<li>
+									<a href="https://xclient.info/">
+										<img src="./img/xclient.ico" />
+										<span>Xclient</span>
+									</a>
+								</li>
+								<li>
+									<a href="https://www.macsky.net/">
+										<img src="./img/macsky.jpg" />
+										<span>MACSKY</span>
+									</a>
+								</li>
+								<li>
+									<a href="https://mac-torrent-download.net/">
+										<img src="./img/mac-torrent-download.ico" />
+										<span>mac-torrent-download</span>
+									</a>
+								</li>
+								<li>
+									<a href="https://bwh1.net/clientarea.php?action=products">
+										<img src="./img/ss16.png" />
+										<span>搬瓦工</span>
+									</a>
+								</li>
+								<li>
+									<a href="https://bwh88.net/clientarea.php?action=products">
+										<img src="./img/ss16.png" />
+										<span>搬瓦工88</span>
+									</a>
+								</li>
+								<li>
+									<a href="https://kiwivm.64clouds.com/main-exec.php?mode=extras_shadowsocks">
+										<img src="./img/ss16.png" />
+										<span>搬瓦工SS</span>
+									</a>
+								</li>
+							</ul>
+						</div>
+					</nav>
+				</div>
+				<div class="card border-light mb-3">
+					<div class="card-header bg-light">生活</div>
+					<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+						<div class="collapse navbar-collapse">
+							<ul>
+								<li>
+									<a href="http://www.12306.cn/mormhweb/">
+										<img src="./img/12306.png" />
+										<span>12306</span>
+									</a>
+								</li>
+								<li>
+									<a href="http://192.168.0.1/">
+										<img src="./img/tplink.png" />
+										<span>路由器</span>
+									</a>
+								</li>
+								<li>
+									<a href="https://www.smzdm.com/">
+										<img src="./img/smzdm.ico" />
+										<span>什么值得买</span>
+									</a>
+								</li>
+								<li>
+									<a href="https://map.bjsubway.com/">
+										<img src="./img/bjsubway.ico" />
+										<span>北京地铁线路图</span>
+									</a>
+								</li>
+							</ul>
+						</div>
+					</nav>
+				</div>
+				<div class="card border-secondary mb-3">
+					<div class="card-header bg-secondary">娱乐</div>
+					<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+						<div class="collapse navbar-collapse">
+							<ul>
+								<li>
+									<a href="http://www.zimuzu.tv/">
+										<img src="./img/zimuzu.png" />
+										<span>人人影视</span>
+									</a>
+								</li>
+								<li>
+									<a href="http://www.dytt8.net/">
+										<img src="./img/dytt.gif" />
+										<span>电影天堂</span>
+									</a>
+								</li>
+								<li>
+									<a href="http://www.id97.com/">
+										<img src="./img/id97.ico" />
+										<span>97电影网</span>
+									</a>
+								</li>
+								<li>
+									<a href="https://www.douyu.com">
+										<img src="./img/douyu.ico" />
+										<span>斗鱼TV</span>
+									</a>
+								</li>
+								<!-- <li>
 							<a href="http://www.panda.tv/">
 								<img src="./img/panda.png" />
 								<span>熊猫TV</span>
 							</a>
 						</li> -->
-					</ul>
-				</fieldset>
+							</ul>
+						</div>
+					</nav>
+				</div>
 			</div>
 		</form>
 	</div>

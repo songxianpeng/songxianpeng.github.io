@@ -2,21 +2,3 @@ img {
 	height: 16px;
 	width: 16px;
 }
-
-body {
-	margin: 20px 5px 5px 5px;
-	vertical-align: middle;
-}
-
-ul {
-	margin: 10px !important;
-}
-
-a:hover {
-	text-decoration: none;
-	color: #8a6d3b;
-}
-
-span {
-	vertical-align: middle;
-}
