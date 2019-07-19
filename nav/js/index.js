@@ -1,4 +1,7 @@
 $(function () {
+	$(".box").fadeOut(0, function () {
+		$("#divMain").removeClass("hide");
+	});
 	// $("img").addClass("img-responsive");
 	// $("li").addClass("col-md-1 text-center");
 	$("ul").addClass("navbar-nav d-block mr-auto list-unstyled");
@@ -8,9 +11,7 @@ $(function () {
 		$("#inputFilter").blur();
 		return false;
 	});
-	$(".box").fadeOut(0, function () {
-		$("#divMain").removeClass("hide");
-	});
+	
 })
 
 $(function () {
