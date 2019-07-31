@@ -5,3 +5,7 @@ img {
 span {
 	vertical-align: middle;
 }
+
+ul {
+	list-style:none
+}
