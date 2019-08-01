@@ -1,6 +1,6 @@
 $(function () {
 	$(".box").fadeOut(0, function () {
-		$("#divMain").removeClass("hide");
+		$("#divMain").removeClass("invisible");
 	});
 	// $("img").addClass("img-responsive");
 	// $("li").addClass("col-md-1 text-center");

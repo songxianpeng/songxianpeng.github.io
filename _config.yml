@@ -4,10 +4,10 @@
 baseurl:
 url: https://songxp.top
 date_format: "ordinal"
-title: Songxp
+title: Andy
 subtitle: "南飞的驴"
-description: "Grow up"
-keywords: Songxp
+description: "Keep change."
+keywords: Andy
 favicon: /favicon.ico
 timezone: Asia/Shanghai
 encoding: "utf-8"
@@ -17,10 +17,10 @@ side_bar_repo_limit: 5
 # ---------------- #
 #      Author      #
 # ---------------- #
-author: Songxp
-organization: I2finance, Inc.
-organization_url: http://www.i2finance.net/
-location: Beijing, China
+author: Andy
+organization: Alibaba, Inc.
+organization_url: http://www.alibaba.com/
+location: Hangzhou, China
 email: songxianpeng@hotmail.com
 
 # ---------------- #
