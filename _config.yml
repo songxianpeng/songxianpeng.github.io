@@ -55,9 +55,7 @@ subscribe_rss: /feed.xml
 # ---------------- #
 #      Jekyll      #
 # ---------------- #
-markdown: kramdown
-kramdown:
-    input: GFM
+
 highlighter: rouge
 paginate: 8
 lsi: false
